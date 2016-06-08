@@ -94,7 +94,7 @@ public class MachineManagerTest {
     @Mock
     private InstanceProcess          instanceProcess;
     @Mock
-    private LineConsumer             processLogger;
+    private LineConsumer             outputConsumer;
 
     private MachineManager manager;
 
@@ -119,7 +119,7 @@ public class MachineManagerTest {
         RecipeImpl recipe = new RecipeImpl().withScript("script").withType("Dockerfile");
 //        doNothing().when(manager).createMachineLogsDir(anyString());
         doReturn(MACHINE_ID).when(manager).generateMachineId();
-        doReturn(processLogger).when(manager).getProcessLogger(MACHINE_ID, 111, "outputChannel");
+        doReturn(outputConsumer).when(manager).getProcessLogger(MACHINE_ID, 111, "outputChannel");
         when(machineInstanceProviders.getProvider(anyString())).thenReturn(instanceProvider);
         HashSet<String> recipeTypes = new HashSet<>();
         recipeTypes.add("test type 1");
@@ -142,25 +142,26 @@ public class MachineManagerTest {
 
     @Test(expectedExceptions = BadRequestException.class, expectedExceptionsMessageRegExp = "Invalid machine name @name!")
     public void shouldThrowExceptionOnMachineCreationIfMachineNameIsInvalid() throws Exception {
-        MachineConfig machineConfig = new MachineConfigImpl(false,
-                                                            "@name!",
-                                                            "machineType",
-                                                            new MachineSourceImpl("Dockerfile").setLocation("location"),
-                                                            new LimitsImpl(1024),
-                                                            Arrays.asList(new ServerConfImpl("ref1",
+        MachineConfig machineConfig = MachineConfigImpl.builder()
+                                                       .setDev(false)
+                                                       .setName("@name!")
+                                                       .setType("machineType")
+                                                       .setSource(new MachineSourceImpl("Dockerfile").setLocation("location"))
+                                                       .setLimits(new LimitsImpl(1024))
+                                                       .setServers(Arrays.asList(new ServerConfImpl("ref1",
                                                                                              "8080",
                                                                                              "https",
                                                                                              "some/path"),
                                                                           new ServerConfImpl("ref2",
                                                                                              "9090/udp",
                                                                                              "someprotocol",
-                                                                                             "/some/path")),
-                                                            Collections.singletonMap("key1", "value1"),
-                                                            Collections.emptyList());
+                                                                                             "/some/path")))
+                                                       .setEnvVariables(Collections.singletonMap("key1", "value1"))
+                                                       .setDependsOn(Collections.emptyList()).build();
         String workspaceId = "wsId";
         String environmentName = "env1";
 
-        manager.createMachineSync(machineConfig, workspaceId, environmentName);
+        manager.createMachineSync(machineConfig, workspaceId, environmentName, outputConsumer);
     }
 
     @Test
@@ -178,7 +179,7 @@ public class MachineManagerTest {
                                                       MachineStatus.CREATING,
                                                       null);
 
-        manager.createMachineSync(machineConfig, WS_ID, ENVIRONMENT_NAME);
+        manager.createMachineSync(machineConfig, WS_ID, ENVIRONMENT_NAME, outputConsumer);
 
         verify(machineRegistry).addMachine(eq(expectedMachine));
     }
@@ -190,7 +191,7 @@ public class MachineManagerTest {
                                                                  .setDev(true)
                                                                  .build();
 
-        manager.createMachineSync(machineConfig, WS_ID, ENVIRONMENT_NAME);
+        manager.createMachineSync(machineConfig, WS_ID, ENVIRONMENT_NAME, outputConsumer);
 
         verify(wsAgentLauncher).startWsAgent(WS_ID);
     }
@@ -199,7 +200,7 @@ public class MachineManagerTest {
     public void shouldNotCallWsAgentLauncherAfterNonDevMachineStart() throws Exception {
         final MachineConfigImpl machineConfig = createMachineConfig();
 
-        manager.createMachineSync(machineConfig, WS_ID, ENVIRONMENT_NAME);
+        manager.createMachineSync(machineConfig, WS_ID, ENVIRONMENT_NAME, outputConsumer);
 
         verify(wsAgentLauncher, never()).startWsAgent(WS_ID);
     }
@@ -225,7 +226,7 @@ public class MachineManagerTest {
         waitForExecutorIsCompletedTask();
 
         //then
-        verify(processLogger).close();
+        verify(outputConsumer).close();
     }
 
     @Test
@@ -238,7 +239,7 @@ public class MachineManagerTest {
         waitForExecutorIsCompletedTask();
 
         //then
-        verify(processLogger).close();
+        verify(outputConsumer).close();
     }
 
     @Test(expectedExceptions = MachineException.class)
@@ -247,14 +248,14 @@ public class MachineManagerTest {
         MachineConfig machineConfig = mock(MachineConfig.class);
         MachineSource machineSource = mock(MachineSource.class);
         LineConsumer machineLogger = mock(LineConsumer.class);
-        doReturn(machineLogger).when(manager).getMachineLogger(MACHINE_ID, "outputChannel");
+        doReturn(machineLogger).when(manager).getMachineLogger(MACHINE_ID, outputConsumer);
         when(machineConfig.getSource()).thenReturn(machineSource);
         when(machineConfig.getName()).thenReturn("Name");
         when(machineSource.getType()).thenReturn("dockerfile");
         doThrow(ConflictException.class).when(machineRegistry).addMachine(any());
 
         //when
-        manager.createMachineSync(machineConfig, "workspaceId", "environmentName");
+        manager.createMachineSync(machineConfig, "workspaceId", "environmentName", outputConsumer);
 
         //then
         verify(machineLogger).close();
@@ -273,20 +274,21 @@ public class MachineManagerTest {
     }
 
     private MachineConfigImpl createMachineConfig() {
-        return new MachineConfigImpl(false,
-                                     "MachineName",
-                                     "docker",
-                                     new MachineSourceImpl("Dockerfile").setLocation("location"),
-                                     new LimitsImpl(1024),
-                                     Arrays.asList(new ServerConfImpl("ref1",
-                                                                      "8080",
-                                                                      "https",
-                                                                      "some/path"),
-                                                   new ServerConfImpl("ref2",
-                                                                      "9090/udp",
-                                                                      "someprotocol",
-                                                                      "/some/path")),
-                                     Collections.singletonMap("key1", "value1"),
-                                     Collections.emptyList());
+        return MachineConfigImpl.builder()
+                                .setDev(false)
+                                .setName("MachineName")
+                                .setType("docker")
+                                .setSource(new MachineSourceImpl("Dockerfile").setLocation("location"))
+                                .setLimits(new LimitsImpl(1024))
+                                .setServers(Arrays.asList(new ServerConfImpl("ref1",
+                                                                             "8080",
+                                                                             "https",
+                                                                             "some/path"),
+                                                          new ServerConfImpl("ref2",
+                                                                             "9090/udp",
+                                                                             "someprotocol",
+                                                                             "/some/path")))
+                                .setEnvVariables(Collections.singletonMap("key1", "value1"))
+                                .setDependsOn(Collections.emptyList()).build();
     }
 }

@@ -47,11 +47,12 @@ public interface MachineConfig {
     Limits getLimits();
 
     /**
-     * List of machines from env current machine is linked with network.
+     * List of machines from env current machine is depends on.
      * <p/>
-     * Machine from link will be available to current machine by host equal to machine's name.
+     * Machine from depends on list will be available to current machine by host equal to machine's name.
+     * Machines from depends on list will be launched before machine that is dependent.
      */
-    List<String> getMachineLinks();
+    List<String> getDependsOn();
 
     /**
      * Get configuration of servers inside of machine.
@@ -61,7 +62,64 @@ public interface MachineConfig {
     List<? extends ServerConf> getServers();
 
     /**
-     * Get predefined environment variables of machine.
+     * Get predefined environment variables of machine
      */
     Map<String, String> getEnvVariables();
+
+    /**
+     * Executable used as machine main process
+     */
+    List<String> getEntrypoint();
+
+    /**
+     * Command used as machine main process
+     */
+    List<String> getCommand();
+
+    /**
+     * Links to another machines.
+     * Either specify both the machine name and a link alias (MACHINE:ALIAS), or just the machine name
+     */
+    List<String> getMachineLinks();
+
+    // todo will we allow specifying external port?
+    /**
+     * Expose ports. Either specify both ports (HOST:CONTAINER), or just the container port (a random host port will be chosen).
+     * Example:
+     * 3000
+     * 3000-3005
+     * 8000:8000
+     * 9090-9091:8080-8081
+     * 49100:22
+     */
+    List<String> getPorts();
+
+    /**
+     * Labels that should be applied to machine
+     */
+    Map<String, String> getLabels();
+
+    /**
+     * Expose ports without publishing them to the host machine - they’ll only be accessible to linked services.
+     * Only the internal port can be specified.
+     */
+    List<String> getExpose();
+
+    /**
+     * Container name of machine
+     */
+    String getContainerName();
+
+    /**
+     * Mount all of the volumes from another service or container,
+     * optionally specifying read-only access (ro) or read-write (rw).
+     * If no access level is specified, then read-write will be used.
+     * Example:
+     * machine_name
+     * machine_name:ro
+     * machine_name:rw
+     */
+    List<String> getVolumesFrom();
+
+    //todo context
 }

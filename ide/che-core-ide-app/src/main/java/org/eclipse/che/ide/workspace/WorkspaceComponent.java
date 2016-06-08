@@ -303,22 +303,10 @@ public abstract class WorkspaceComponent implements Component, WsAgentStateHandl
     private void handleWsStart(WorkspaceDto workspace) {
         initialLoadingInfo.setOperationStatus(WORKSPACE_BOOTING.getValue(), SUCCESS);
         setCurrentWorkspace(workspace);
-        EnvironmentDto currentEnvironment = null;
-        for (EnvironmentDto environment : workspace.getConfig().getEnvironments()) {
-            if (environment.getName().equals(workspace.getConfig().getDefaultEnv())) {
-                currentEnvironment = environment;
-                break;
-            }
-        }
-        List<MachineConfigDto> machineConfigs =
-                currentEnvironment != null ? currentEnvironment.getMachineConfigs() : Collections.<MachineConfigDto>emptyList();
+        // EnvironmentDto currentEnvironment = workspace.getConfig().getEnvironments().get(workspace.getConfig().getDefaultEnv());
 
-        for (MachineConfigDto machineConfig : machineConfigs) {
-            if (machineConfig.isDev()) {
-                MachineManager machineManager = machineManagerProvider.get();
-                machineManager.onDevMachineCreating(machineConfig);
-            }
-        }
+        MachineManager machineManager = machineManagerProvider.get();
+        machineManager.onWsStarting(workspace);
     }
 
     private void subscribeToWorkspaceStatusWebSocket(final WorkspaceDto workspace) {

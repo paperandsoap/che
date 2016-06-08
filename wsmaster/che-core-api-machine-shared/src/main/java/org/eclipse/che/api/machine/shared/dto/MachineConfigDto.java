@@ -82,11 +82,67 @@ public interface MachineConfigDto extends MachineConfig, Hyperlinks {
     MachineConfigDto withEnvVariables(Map<String, String> envVariables);
 
     @Override
+    List<String> getDependsOn();
+
+    void setDependsOn(List<String> dependsOn);
+
+    MachineConfigDto withDependsOn(List<String> dependsOn);
+
+    @Override
+    List<String> getCommand();
+
+    void setCommand(List<String> command);
+
+    MachineConfigDto withCommand(List<String> command);
+
+    @Override
+    List<String> getEntrypoint();
+
+    void setEntrypoint(List<String> entrypoint);
+
+    MachineConfigDto withEntrypoint(List<String> entrypoint);
+
+    @Override
+    List<String> getExpose();
+
+    void setExpose(List<String> expose);
+
+    MachineConfigDto withExpose(List<String> expose);
+
+    @Override
     List<String> getMachineLinks();
 
     void setMachineLinks(List<String> machineLinks);
 
     MachineConfigDto withMachineLinks(List<String> machineLinks);
+
+    @Override
+    List<String> getPorts();
+
+    void setPorts(List<String> ports);
+
+    MachineConfigDto withPorts(List<String> ports);
+
+    @Override
+    Map<String, String> getLabels();
+
+    void setLabels(Map<String, String> labels);
+
+    MachineConfigDto withLabels(Map<String, String> labels);
+
+    @Override
+    String getContainerName();
+
+    void setContainerName(String containerName);
+
+    MachineConfigDto withContainerName(String containerName);
+
+    @Override
+    List<String> getVolumesFrom();
+
+    void setVolumesFrom(List<String> volumesFrom);
+
+    MachineConfigDto withVolumesFrom(List<String> volumesFrom);
 
     @Override
     MachineConfigDto withLinks(List<Link> links);
