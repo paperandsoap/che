@@ -10,98 +10,204 @@
  *******************************************************************************/
 package org.eclipse.che.api.workspace.server.env.impl.che;
 
+import com.fasterxml.jackson.databind.ObjectMapper;
+import com.fasterxml.jackson.dataformat.yaml.YAMLFactory;
 import com.google.common.base.Joiner;
-import com.google.gson.JsonSyntaxException;
 
 import org.eclipse.che.api.core.BadRequestException;
+import org.eclipse.che.api.core.ServerException;
 import org.eclipse.che.api.core.model.machine.MachineConfig;
+import org.eclipse.che.api.core.model.machine.MachineExtension;
 import org.eclipse.che.api.core.model.machine.ServerConf;
 import org.eclipse.che.api.core.model.workspace.Environment;
+import org.eclipse.che.api.core.model.workspace.EnvironmentRecipe;
 import org.eclipse.che.api.machine.server.MachineInstanceProviders;
-import org.eclipse.che.api.machine.shared.dto.MachineConfigDto;
+import org.eclipse.che.api.machine.server.exception.MachineException;
+import org.eclipse.che.api.machine.server.model.impl.LimitsImpl;
+import org.eclipse.che.api.machine.server.model.impl.MachineConfigImpl;
+import org.eclipse.che.api.machine.server.model.impl.MachineSourceImpl;
+import org.eclipse.che.api.workspace.server.env.impl.che.opencompose.impl.EnvironmentRecipeContentImpl;
+import org.eclipse.che.api.workspace.server.env.impl.che.opencompose.impl.ServiceImpl;
 import org.eclipse.che.api.workspace.server.env.spi.EnvironmentValidator;
-import org.eclipse.che.dto.server.DtoFactory;
+import org.eclipse.che.api.workspace.server.model.impl.EnvironmentImpl;
+import org.eclipse.che.api.workspace.server.model.impl.MachineExtensionImpl;
+import org.eclipse.che.commons.env.EnvironmentContext;
+import org.eclipse.che.commons.lang.IoUtil;
+import org.slf4j.Logger;
 
 import javax.inject.Inject;
+import javax.inject.Named;
+import javax.ws.rs.core.UriBuilder;
+import java.io.File;
+import java.io.FileInputStream;
+import java.io.IOException;
+import java.net.URI;
+import java.net.URL;
+import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 import java.util.regex.Pattern;
+import java.util.stream.Collectors;
 
 import static com.google.common.base.Strings.isNullOrEmpty;
 import static java.lang.String.format;
+import static org.slf4j.LoggerFactory.getLogger;
 
 /**
  * author Alexander Garagatyi
  */
 public class CheEnvironmentValidator implements EnvironmentValidator {
+    private static final Logger       LOG        = getLogger(CheEnvironmentValidator.class);
+    private static final ObjectMapper jsonParser = new ObjectMapper();
+    private static final ObjectMapper yamlParser = new ObjectMapper(new YAMLFactory());
+
     private static final Pattern SERVER_PORT     = Pattern.compile("[1-9]+[0-9]*/(?:tcp|udp)");
     private static final Pattern SERVER_PROTOCOL = Pattern.compile("[a-z][a-z0-9-+.]*");
 
     private final MachineInstanceProviders machineInstanceProviders;
+    private final URI                      apiEndpoint;
 
     @Inject
-    public CheEnvironmentValidator(MachineInstanceProviders machineInstanceProviders) {
+    public CheEnvironmentValidator(MachineInstanceProviders machineInstanceProviders,
+                                   @Named("api.endpoint") URI apiEndpoint) {
         this.machineInstanceProviders = machineInstanceProviders;
+        this.apiEndpoint = apiEndpoint;
     }
 
     public String getType() {
         return CheEnvironmentEngine.ENVIRONMENT_TYPE;
     }
-// todo validate links in the same way as machine name
-    @Override
-    public void validate(Environment env) throws BadRequestException {
-        final String envName = env.getName();
-        checkArgument(!isNullOrEmpty(envName), "Environment name should be neither null nor empty");
 
-        List<? extends MachineConfig> machines;
-        try {
-            machines = parse(env);
-        } catch (IllegalArgumentException e) {
-            throw new BadRequestException(e.getLocalizedMessage());
+    // todo validate depends on in the same way as machine name
+    // todo validate that env contains machine with name equal to dependency
+    // todo use strategy to check if order is valid, there is no cyclic dependency
+    // todo should throw another exception in case it is not possible to download recipe
+    @Override
+    public void validate(Environment env) throws BadRequestException, ServerException {
+        parse(env);
+    }
+
+    public List<MachineConfig> parse(Environment env) throws ServerException, IllegalArgumentException {
+        EnvironmentImpl envImpl = new EnvironmentImpl(env);
+
+        List<MachineConfigImpl> machines = parseEnvironmentRecipe(envImpl.getRecipe());
+
+        // normalize machines extension part
+        for (MachineConfigImpl machineConfig : machines) {
+            MachineExtension machineExtension = envImpl.getMachines().get(machineConfig.getName());
+            if (machineExtension == null) {
+                envImpl.getMachines().put(machineConfig.getName(), new MachineExtensionImpl(null, null));
+            } else {
+                if (machineExtension.getAgents().contains("dev")) {
+                    machineConfig.setDev(true);
+                }
+                // todo check that servers are equal
+                machineConfig.setServers(new ArrayList<>(machineExtension.getServers().values()));
+            }
         }
 
         //machine configs
-        checkArgument(!machines.isEmpty(), "Environment '%s' should contain at least 1 machine", envName);
+        checkArgument(!machines.isEmpty(), "Environment should contain at least 1 machine");
 
         final long devCount = machines.stream()
                                       .filter(MachineConfig::isDev)
                                       .count();
         checkArgument(devCount == 1,
-                      "Environment should contain exactly 1 dev machine, but '%s' contains '%d'",
-                      envName,
+                      "Environment should contain exactly 1 dev machine, but contains '%d'",
                       devCount);
         for (MachineConfig machineCfg : machines) {
-            validateMachine(machineCfg, envName);
+            validateMachine(machineCfg);
         }
+
+        return machines.stream().collect(Collectors.toList());
     }
 
-    // todo change to new entity that contains network
-    public List<? extends MachineConfig> parse(Environment env) throws IllegalArgumentException {
-        List<? extends MachineConfig> machines;
-        if (env.getConfig() != null) {
-            // parse new format
-            try {
-                machines = DtoFactory.getInstance().createListDtoFromJson(env.getConfig(), MachineConfigDto.class);
-            } catch (JsonSyntaxException e) {
-                throw new IllegalArgumentException("Parsing of environment configuration failed. " + e.getLocalizedMessage());
-            }
-        } else {
-            // old format
-            machines = env.getMachineConfigs();
-        }
-        return machines;
+    // todo should throw another exception in case it is not possible to download recipe
+    // todo throw exception if machine extension contains machine not in recipe
+    private List<MachineConfigImpl> parseEnvironmentRecipe(EnvironmentRecipe environmentRecipe)
+            throws IllegalArgumentException, ServerException {
+        //todo servers + agents+ dev
+        String recipeContent = getContentOfRecipe(environmentRecipe);
+        EnvironmentRecipeContentImpl environmentRecipeContent = parseEnvironmentRecipeContent(recipeContent,
+                                                                                              environmentRecipe.getContentType());
+
+        return environmentRecipeContent.getServices()
+                                       .entrySet()
+                                       .stream()
+                                       .map(entry -> {
+                                           ServiceImpl service = entry.getValue();
+
+                                           MachineSourceImpl machineSource;
+                                           if (service.getImage() != null) {
+                                               machineSource = new MachineSourceImpl("image").setLocation(service.getImage());
+                                           } else {
+                                               // todo how to set custom dockerfile path?
+                                               machineSource = new MachineSourceImpl("docker-build-context").setLocation(service.getContext());
+                                           }
+
+                                           return MachineConfigImpl.builder()
+                                                                   .setType("docker")
+                                                                   .setSource(machineSource)
+                                                                   .setCommand(service.getCommand())
+                                                                   .setContainerName(service.getContainerName())
+                                                                   .setDependsOn(service.getDependsOn())
+                                                                   .setEntrypoint(service.getEntrypoint())
+                                                                   .setEnvVariables(service.getEnvironment())
+                                                                   .setExpose(service.getExpose())
+                                                                   .setLabels(service.getLabels())
+                                                                   .setLimits(new LimitsImpl(
+                                                                           service.getMemLimit() != null ? service.getMemLimit()
+                                                                                                         : 0))
+                                                                   .setMachineLinks(service.getLinks())
+                                                                   .setName(entry.getKey())
+                                                                   .setPorts(service.getPorts())
+                                                                   .build();
+                                       })
+                                       .collect(Collectors.toList());
     }
 
-    private void validateMachine(MachineConfig machineCfg, String envName) throws BadRequestException {
-        checkArgument(!isNullOrEmpty(machineCfg.getName()), "Environment %s contains machine with null or empty name", envName);
-        checkNotNull(machineCfg.getSource(), "Environment " + envName + " contains machine without source");
+    private EnvironmentRecipeContentImpl parseEnvironmentRecipeContent(String recipeContent, String contentType) {
+        if (contentType == null) {
+            throw new IllegalArgumentException(
+                    "Environment recipe content type required. Supported values are: application/json, application/x-yaml, text/yaml, text/x-yaml");
+        }
+        EnvironmentRecipeContentImpl envRecipeContent;
+        switch (contentType) {
+            case "application/json" :
+                try {
+                    envRecipeContent = jsonParser.readValue(recipeContent, EnvironmentRecipeContentImpl.class);
+                } catch (IOException e) {
+                    throw new IllegalArgumentException("Parsing of environment configuration failed. " + e.getLocalizedMessage());
+                }
+                break;
+            case "application/x-yaml" :
+            case "text/yaml":
+            case "text/x-yaml":
+//                Yaml yaml = new Yaml();
+//                envRecipeContent = yaml.loadAs(recipeContent, EnvironmentRecipeContentImpl.class);
+                try {
+                    envRecipeContent = yamlParser.readValue(recipeContent, EnvironmentRecipeContentImpl.class);
+                } catch (IOException e) {
+                    throw new IllegalArgumentException("Parsing of environment configuration failed. " + e.getLocalizedMessage());
+                }
+                break;
+            default:
+                throw new IllegalArgumentException("Provided environment recipe content type '" +
+                                                   contentType +
+                                                   "' is unsupported. Supported values are: application/json, application/x-yaml");
+        }
+        return envRecipeContent;
+    }
+
+    private void validateMachine(MachineConfig machineCfg) throws IllegalArgumentException {
+        checkArgument(!isNullOrEmpty(machineCfg.getName()), "Environment contains machine with null or empty name");
+        checkNotNull(machineCfg.getSource(), "Environment contains machine without source");
         checkArgument(!(machineCfg.getSource().getContent() == null && machineCfg.getSource().getLocation() == null),
-                      "Environment " + envName + " contains machine with source but this source doesn't define a location or content");
+                      "Environment contains machine with source but this source doesn't define a location or content");
         checkArgument(machineInstanceProviders.hasProvider(machineCfg.getType()),
-                      "Type %s of machine %s in environment %s is not supported. Supported values: %s.",
+                      "Type %s of machine %s is not supported. Supported values: %s.",
                       machineCfg.getType(),
                       machineCfg.getName(),
-                      envName,
                       Joiner.on(", ").join(machineInstanceProviders.getProviderTypes()));
 
         for (ServerConf serverConf : machineCfg.getServers()) {
@@ -124,9 +230,9 @@ public class CheEnvironmentValidator implements EnvironmentValidator {
      * Checks that object reference is not null, throws {@link BadRequestException}
      * in the case of null {@code object} with given {@code message}.
      */
-    private static void checkNotNull(Object object, String message) throws BadRequestException {
+    private static void checkNotNull(Object object, String message) throws IllegalArgumentException {
         if (object == null) {
-            throw new BadRequestException(message);
+            throw new IllegalArgumentException(message);
         }
     }
 
@@ -135,9 +241,9 @@ public class CheEnvironmentValidator implements EnvironmentValidator {
      *
      * <p>Exception uses error message built from error message template and error message parameters.
      */
-    private static void checkArgument(boolean expression, String errorMessage) throws BadRequestException {
+    private static void checkArgument(boolean expression, String errorMessage) {
         if (!expression) {
-            throw new BadRequestException(errorMessage);
+            throw new IllegalArgumentException(errorMessage);
         }
     }
 
@@ -147,9 +253,46 @@ public class CheEnvironmentValidator implements EnvironmentValidator {
      * <p>Exception uses error message built from error message template and error message parameters.
      */
     private static void checkArgument(boolean expression, String errorMessageTemplate, Object... errorMessageParams)
-            throws BadRequestException {
+            throws IllegalArgumentException {
         if (!expression) {
-            throw new BadRequestException(format(errorMessageTemplate, errorMessageParams));
+            throw new IllegalArgumentException(format(errorMessageTemplate, errorMessageParams));
+        }
+    }
+
+    private String getContentOfRecipe(EnvironmentRecipe environmentRecipe) throws ServerException {
+        if (environmentRecipe.getContent() != null) {
+            return environmentRecipe.getContent();
+        } else {
+            return getRecipe(environmentRecipe.getLocation());
+        }
+    }
+
+    private String getRecipe(String location) throws ServerException {
+        URL recipeUrl;
+        File file = null;
+        try {
+            UriBuilder targetUriBuilder = UriBuilder.fromUri(location);
+            // add user token to be able to download user's private recipe
+            final String apiEndPointHost = apiEndpoint.getHost();
+            final String host = targetUriBuilder.build().getHost();
+            if (apiEndPointHost.equals(host)) {
+                if (EnvironmentContext.getCurrent().getSubject() != null
+                    && EnvironmentContext.getCurrent().getSubject().getToken() != null) {
+                    targetUriBuilder.queryParam("token", EnvironmentContext.getCurrent().getSubject().getToken());
+                }
+            }
+            recipeUrl = targetUriBuilder.build().toURL();
+            file = IoUtil.downloadFileWithRedirect(null, "recipe", null, recipeUrl);
+
+            return IoUtil.readAndCloseQuietly(new FileInputStream(file));
+        } catch (IOException | IllegalArgumentException e) {
+            throw new MachineException(format("Recipe downloading failed. Recipe url %s. Error: %s",
+                                              location,
+                                              e.getLocalizedMessage()));
+        } finally {
+            if (file != null && !file.delete()) {
+                LOG.error(String.format("Removal of recipe file %s failed.", file.getAbsolutePath()));
+            }
         }
     }
 }

@@ -55,7 +55,15 @@ public final class DtoConverter {
                                                                 .map(DtoConverter::asDto)
                                                                 .collect(Collectors.toList()))
                                              .withEnvVariables(config.getEnvVariables())
-                                             .withMachineLinks(config.getMachineLinks());
+                                             .withDependsOn(config.getDependsOn())
+                                             .withMachineLinks(config.getMachineLinks())
+                                             .withCommand(config.getCommand())
+                                             .withContainerName(config.getContainerName())
+                                             .withEntrypoint(config.getEntrypoint())
+                                             .withExpose(config.getExpose())
+                                             .withLabels(config.getLabels())
+                                             .withPorts(config.getPorts())
+                                             .withVolumesFrom(config.getVolumesFrom());
     }
 
     /**

@@ -40,6 +40,9 @@ public interface WorkspaceRuntime {
      */
     String getActiveEnv();
 
+    /**
+     * Type of the environment used for bringing up this runtime
+     */
     String getEnvType();
 
     /**

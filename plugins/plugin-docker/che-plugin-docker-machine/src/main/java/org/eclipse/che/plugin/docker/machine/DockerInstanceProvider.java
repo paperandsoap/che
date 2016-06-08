@@ -44,10 +44,20 @@ import org.eclipse.che.plugin.docker.client.DockerfileParser;
 import org.eclipse.che.plugin.docker.client.ProgressLineFormatterImpl;
 import org.eclipse.che.plugin.docker.client.ProgressMonitor;
 import org.eclipse.che.plugin.docker.client.json.ContainerConfig;
+import org.eclipse.che.plugin.docker.client.json.Filters;
 import org.eclipse.che.plugin.docker.client.json.HostConfig;
+import org.eclipse.che.plugin.docker.client.json.container.NetworkingConfig;
+import org.eclipse.che.plugin.docker.client.json.network.EndpointConfig;
+import org.eclipse.che.plugin.docker.client.json.network.Network;
+import org.eclipse.che.plugin.docker.client.json.network.NewNetwork;
+import org.eclipse.che.plugin.docker.client.params.BuildImageParams;
+import org.eclipse.che.plugin.docker.client.params.CreateContainerParams;
 import org.eclipse.che.plugin.docker.client.params.PullParams;
 import org.eclipse.che.plugin.docker.client.params.RemoveImageParams;
+import org.eclipse.che.plugin.docker.client.params.StartContainerParams;
 import org.eclipse.che.plugin.docker.client.params.TagParams;
+import org.eclipse.che.plugin.docker.client.params.network.CreateNetworkParams;
+import org.eclipse.che.plugin.docker.client.params.network.GetNetworksParams;
 import org.eclipse.che.plugin.docker.machine.node.DockerNode;
 import org.eclipse.che.plugin.docker.machine.node.WorkspaceFolderPathProvider;
 import org.slf4j.Logger;
@@ -73,6 +83,8 @@ import java.util.stream.Collectors;
 
 import static com.google.common.base.Strings.isNullOrEmpty;
 import static java.lang.String.format;
+import static java.util.Collections.singletonList;
+import static java.util.Collections.singletonMap;
 import static org.eclipse.che.plugin.docker.machine.DockerInstance.LATEST_TAG;
 
 /**
@@ -82,6 +94,7 @@ import static org.eclipse.che.plugin.docker.machine.DockerInstance.LATEST_TAG;
  * @author Alexander Garagatyi
  * @author Roman Iuvshyn
  */
+// todo when machine fails workspace in starting state
 public class DockerInstanceProvider implements InstanceProvider {
     private static final Logger LOG = LoggerFactory.getLogger(DockerInstanceProvider.class);
 
@@ -94,6 +107,11 @@ public class DockerInstanceProvider implements InstanceProvider {
      * image type support with recipe script being the name of the repository + image name
      */
     public static final String DOCKER_IMAGE_TYPE = "image";
+
+    /**
+     * docker build context type support with image build context URI
+     */
+    public static final String DOCKER_CONTEXT_TYPE = "docker-build-context";
 
     private final DockerConnector                               docker;
     private final UserSpecificDockerRegistryCredentialsProvider dockerCredentials;
@@ -146,7 +164,7 @@ public class DockerInstanceProvider implements InstanceProvider {
         this.workspaceFolderPathProvider = workspaceFolderPathProvider;
         this.doForcePullOnBuild = doForcePullOnBuild;
         this.privilegeMode = privilegeMode;
-        this.supportedRecipeTypes = Sets.newHashSet(DOCKER_FILE_TYPE, DOCKER_IMAGE_TYPE);
+        this.supportedRecipeTypes = Sets.newHashSet(DOCKER_FILE_TYPE, DOCKER_IMAGE_TYPE, DOCKER_CONTEXT_TYPE);
         this.projectFolderPath = projectFolderPath;
         this.snapshotUseRegistry = snapshotUseRegistry;
         // usecases:
@@ -283,57 +301,91 @@ public class DockerInstanceProvider implements InstanceProvider {
                                                                                          machine.getId(),
                                                                                          userName,
                                                                                          machine.getConfig().getName());
-        // get recipe
+
+        final long machineMemory = machine.getConfig().getLimits().getRam() * 1024L * 1024L;
+        final long machineMemorySwap = memorySwapMultiplier == -1 ? -1 : (long)(machineMemory * memorySwapMultiplier);
+        final String machineImageName = "eclipse-che/" + machineContainerName;
+
+        // get container creation source
         // - it's a dockerfile type:
         //    - location defined : download this location and get script as recipe
         //    - content defined  : use this content as recipe script
         // - it's an image:
         //    - use location of image ([registry:port]/<repository-image>[:tag][@digest])
-        final Recipe recipe;
-        if (DOCKER_FILE_TYPE.equals(type)) {
-            recipe = this.recipeRetriever.getRecipe(machineConfig);
-        } else if (DOCKER_IMAGE_TYPE.equals(type)) {
-            if (isNullOrEmpty(machineSource.getLocation())) {
-                throw new InvalidRecipeException(String.format("The type '%s' needs to be used with a location, not with any other parameter. Found '%s'.", type, machineSource));
-            }
-            return createInstanceFromImage(machine, machineContainerName, creationLogsOutput);
-        } else {
-            // not supported
-            throw new UnsupportedRecipeException("The type '" + type + "' is not supported");
+        // - it's a remote build context
+        //    - use remote parameter to build image
+        switch (type) {
+            case DOCKER_FILE_TYPE:
+                final Recipe recipe = this.recipeRetriever.getRecipe(machineConfig);
+                final Dockerfile dockerfile = parseRecipe(recipe);
+                // todo EnableOfflineDockerMachineBuildInterceptor
+                buildImage(dockerfile, null, creationLogsOutput, machineImageName, doForcePullOnBuild, machineMemory, machineMemorySwap);
+
+                return createInstance(machineContainerName,
+                                      machine,
+                                      machineImageName,
+                                      creationLogsOutput,
+                                      machineMemory,
+                                      machineMemorySwap);
+            case DOCKER_IMAGE_TYPE:
+                if (isNullOrEmpty(machineSource.getLocation())) {
+                    throw new InvalidRecipeException(
+                            String.format("The type '%s' needs to be used with a location, not with any other parameter. Found '%s'.", type,
+                                          machineSource));
+                }
+                return createInstanceFromImage(machine,
+                                               machineContainerName,
+                                               machineImageName,
+                                               creationLogsOutput,
+                                               machineMemory,
+                                               machineMemorySwap);
+            case DOCKER_CONTEXT_TYPE:
+                buildImage(null,
+                           machine.getConfig().getSource().getLocation(),
+                           creationLogsOutput,
+                           machineImageName,
+                           doForcePullOnBuild,
+                           machineMemory,
+                           machineMemorySwap);
+
+                return createInstance(machineContainerName,
+                                      machine,
+                                      machineImageName,
+                                      creationLogsOutput,
+                                      machineMemory,
+                                      machineMemorySwap);
+            default:
+                // not supported
+                throw new UnsupportedRecipeException("The type '" + type + "' is not supported");
         }
-        final Dockerfile dockerfile = parseRecipe(recipe);
-
-        final String machineImageName = "eclipse-che/" + machineContainerName;
-        final long memoryLimit = (long)machine.getConfig().getLimits().getRam() * 1024 * 1024;
-
-        buildImage(dockerfile, creationLogsOutput, machineImageName, doForcePullOnBuild, memoryLimit, -1);
-
-        return createInstance(machineContainerName,
-                              machine,
-                              machineImageName,
-                              creationLogsOutput);
     }
 
-    protected Instance createInstanceFromImage(final Machine machine, String machineContainerName,
-                                        final LineConsumer creationLogsOutput) throws NotFoundException, MachineException {
+    protected Instance createInstanceFromImage(final Machine machine,
+                                               String machineContainerName,
+                                               String machineImageName,
+                                               final LineConsumer creationLogsOutput,
+                                               long memory,
+                                               long memorySwap) throws NotFoundException,
+                                                                       MachineException {
         final DockerMachineSource dockerMachineSource = new DockerMachineSource(machine.getConfig().getSource());
 
-        if (snapshotUseRegistry) {
-            pullImage(dockerMachineSource, creationLogsOutput);
-        }
+        // todo bug is here; impossible to create machines from image (not snapshot case).
+        // commented snapshot as workaround to fix it for demo
+//        if (snapshotUseRegistry) {
+        pullImage(dockerMachineSource, creationLogsOutput);
+//        }
 
-        final String machineImageName = "eclipse-che/" + machineContainerName;
         final String fullNameOfPulledImage = dockerMachineSource.getLocation(false);
         try {
             // tag image with generated name to allow sysadmin recognize it
             docker.tag(TagParams.create(fullNameOfPulledImage, machineImageName));
         } catch (IOException e) {
             LOG.error(e.getLocalizedMessage(), e);
-            throw new MachineException("Can't create machine from snapshot.");
+            throw new MachineException("Can't create machine from image.");
         }
         try {
             // remove unneeded tag
-            docker.removeImage(fullNameOfPulledImage, false);
+            docker.removeImage(fullNameOfPulledImage);
         } catch (IOException e) {
             LOG.error(e.getLocalizedMessage(), e);
         }
@@ -341,7 +393,9 @@ public class DockerInstanceProvider implements InstanceProvider {
         return createInstance(machineContainerName,
                               machine,
                               machineImageName,
-                              creationLogsOutput);
+                              creationLogsOutput,
+                              memory,
+                              memorySwap);
     }
 
     private Dockerfile parseRecipe(final Recipe recipe) throws InvalidRecipeException {
@@ -370,6 +424,7 @@ public class DockerInstanceProvider implements InstanceProvider {
     }
 
     protected void buildImage(final Dockerfile dockerfile,
+                              final String remote,
                               final LineConsumer creationLogsOutput,
                               final String imageName,
                               final boolean doForcePullOnBuild,
@@ -377,30 +432,37 @@ public class DockerInstanceProvider implements InstanceProvider {
                               final long memorySwapLimit)
             throws MachineException {
 
+        final ProgressLineFormatterImpl progressLineFormatter = new ProgressLineFormatterImpl();
+        final ProgressMonitor progressMonitor = currentProgressStatus -> {
+            try {
+                creationLogsOutput.writeLine(progressLineFormatter.format(currentProgressStatus));
+            } catch (IOException e) {
+                LOG.error(e.getLocalizedMessage(), e);
+            }
+        };
+
         File workDir = null;
         try {
-            // build docker image
-            workDir = Files.createTempDirectory(null).toFile();
-            final File dockerfileFile = new File(workDir, "Dockerfile");
-            dockerfile.writeDockerfile(dockerfileFile);
-            final List<File> files = new LinkedList<>();
-            //noinspection ConstantConditions
-            Collections.addAll(files, workDir.listFiles());
-            final ProgressLineFormatterImpl progressLineFormatter = new ProgressLineFormatterImpl();
-            final ProgressMonitor progressMonitor = currentProgressStatus -> {
-                try {
-                    creationLogsOutput.writeLine(progressLineFormatter.format(currentProgressStatus));
-                } catch (IOException e) {
-                    LOG.error(e.getLocalizedMessage(), e);
-                }
-            };
-            docker.buildImage(imageName,
-                              progressMonitor,
-                              dockerCredentials.getCredentials(),
-                              doForcePullOnBuild,
-                              memoryLimit,
-                              memorySwapLimit,
-                              files.toArray(new File[files.size()]));
+            BuildImageParams buildImageParams;
+            if (remote != null) {
+                buildImageParams = BuildImageParams.create(remote);
+            } else {
+                // build docker image
+                workDir = Files.createTempDirectory(null).toFile();
+                final File dockerfileFile = new File(workDir, "Dockerfile");
+                dockerfile.writeDockerfile(dockerfileFile);
+                final List<File> files = new LinkedList<>();
+                //noinspection ConstantConditions
+                Collections.addAll(files, workDir.listFiles());
+                buildImageParams = BuildImageParams.create(files.toArray(new File[files.size()]));
+            }
+            // todo add dockerfile param
+            docker.buildImage(buildImageParams.withRepository(imageName)
+                                              .withDoForcePull(doForcePullOnBuild)
+                                              .withMemoryLimit(memoryLimit)
+                                              .withMemorySwapLimit(memorySwapLimit)
+                                              .withAuthConfigs(dockerCredentials.getCredentials()),
+                              progressMonitor);
         } catch (IOException | InterruptedException e) {
             throw new MachineException(e.getMessage(), e);
         } finally {
@@ -507,13 +569,20 @@ public class DockerInstanceProvider implements InstanceProvider {
     private Instance createInstance(final String containerName,
                                     final Machine machine,
                                     final String imageName,
-                                    final LineConsumer outputConsumer)
+                                    final LineConsumer outputConsumer,
+                                    long memory,
+                                    long memorySwap)
             throws MachineException {
         try {
+            String networkName = machine.getWorkspaceId();
+            createNetwork(networkName);
+
+            MachineConfig config = machine.getConfig();
+
             final Map<String, Map<String, String>> portsToExpose;
             final String[] volumes;
             final List<String> env;
-            if (machine.getConfig().isDev()) {
+            if (config.isDev()) {
                 portsToExpose = new HashMap<>(devMachinePortsToExpose);
 
                 final String projectFolderVolume = format("%s:%s:Z",
@@ -531,38 +600,69 @@ public class DockerInstanceProvider implements InstanceProvider {
                 env = new ArrayList<>(commonMachineEnvVariables);
             }
 
-            final long machineMemory = machine.getConfig().getLimits().getRam() * 1024L * 1024L;
-            final long machineMemorySwap = memorySwapMultiplier == -1 ? -1 : (long)(machineMemory * memorySwapMultiplier);
+            config.getServers()
+                  .stream()
+                  .forEach(serverConf -> portsToExpose.put(serverConf.getPort(), Collections.emptyMap()));
 
-            machine.getConfig()
-                   .getServers()
-                   .stream()
-                   .forEach(serverConf -> portsToExpose.put(serverConf.getPort(), Collections.emptyMap()));
+            config.getExpose()
+                  .stream()
+                  .forEach(expose -> portsToExpose.put(expose, Collections.emptyMap()));
 
-            machine.getConfig()
-                   .getEnvVariables()
-                   .entrySet()
-                   .stream()
-                   .map(entry -> entry.getKey() + "=" + entry.getValue())
-                   .forEach(env::add);
+            config.getEnvVariables()
+                  .entrySet()
+                  .stream()
+                  .map(entry -> entry.getKey() + "=" + entry.getValue())
+                  .forEach(env::add);
 
-            final HostConfig hostConfig = new HostConfig().withBinds(volumes)
-                                                          .withExtraHosts(allMachinesExtraHosts)
-                                                          .withPublishAllPorts(true)
-                                                          .withMemorySwap(machineMemorySwap)
-                                                          .withMemory(machineMemory)
-                                                          .withPrivileged(privilegeMode);
-            final ContainerConfig config = new ContainerConfig().withImage(imageName)
-                                                                .withExposedPorts(portsToExpose)
-                                                                .withHostConfig(hostConfig)
-                                                                .withEnv(env.toArray(new String[env.size()]));
+            final EndpointConfig endpointConfig = new EndpointConfig().withAliases(singletonList(config.getName()));
+            final NetworkingConfig networkingConfig = new NetworkingConfig().withEndpointsConfig(singletonMap(networkName,
+                                                                                                              endpointConfig));
+            // todo find ports that should not be exposed
+            // set publish all ports = true
+            // set port bindings for private ports to null
+            // Done
+            // todo or set something to ports that should be published only - servers + field ports
 
-            final String containerId = docker.createContainer(config, containerName).getId();
+            // todo machine links - add alias. Or add alias by machine name
 
-            docker.startContainer(containerId, null);
+            // todo respect volumesFrom
+
+            //todo check how to prevent insertion labels that can broke docker/swarm or make them unsecure
+
+            //todo remove network on ws stop
+
+            // todo
+            // do not create network for 1 container env
+            // support overlay + default network + bridge
+
+            final HostConfig hostConfig = new HostConfig();
+            hostConfig.withBinds(volumes)
+                      .withExtraHosts(allMachinesExtraHosts)
+                      .withPublishAllPorts(true)
+                      .withMemorySwap(memorySwap)
+                      .withMemory(memory)
+                      .withPrivileged(privilegeMode)
+                      .withNetworkMode(networkName);
+            final ContainerConfig containerConfig = new ContainerConfig();
+            containerConfig.withImage(imageName)
+                           .withExposedPorts(portsToExpose)
+                           .withHostConfig(hostConfig)
+                           .withEnv(env.toArray(new String[env.size()]))
+                           .withNetworkingConfig(networkingConfig)
+                           .withLabels(config.getLabels())
+                           .withEntrypoint(config.getEntrypoint().size() < 1 ? null :
+                                           config.getEntrypoint().toArray(new String[config.getEntrypoint().size()]))
+                           .withCmd(config.getCommand().size() < 1 ? null :
+                                    config.getCommand().toArray(new String[config.getCommand().size()]));
+
+            final String containerId = docker.createContainer(CreateContainerParams.create(containerConfig)
+                                                                                   .withContainerName(containerName))
+                                             .getId();
+
+            docker.startContainer(StartContainerParams.create(containerId));
 
             final DockerNode node = dockerMachineFactory.createNode(machine.getWorkspaceId(), containerId);
-            if (machine.getConfig().isDev()) {
+            if (config.isDev()) {
                 node.bindWorkspace();
                 LOG.info("Machine with id '{}' backed by container '{}' has been deployed on node '{}'",
                          machine.getId(), containerId, node.getHost());
@@ -577,6 +677,14 @@ public class DockerInstanceProvider implements InstanceProvider {
                                                        outputConsumer);
         } catch (IOException e) {
             throw new MachineException(e.getLocalizedMessage(), e);
+        }
+    }
+
+    private void createNetwork(String networkName) throws IOException {
+        List<Network> networks = docker.getNetworks(GetNetworksParams.create().withFilters(new Filters().withFilter("name", networkName)));
+        if (networks.size() == 0) {
+            docker.createNetwork(CreateNetworkParams.create(new NewNetwork().withName(networkName)
+                                                                            .withCheckDuplicate(true)));
         }
     }
 

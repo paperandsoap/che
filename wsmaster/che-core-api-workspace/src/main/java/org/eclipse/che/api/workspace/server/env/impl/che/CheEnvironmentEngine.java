@@ -12,6 +12,7 @@ package org.eclipse.che.api.workspace.server.env.impl.che;
 
 import com.google.common.annotations.VisibleForTesting;
 import com.google.common.util.concurrent.Striped;
+import com.google.common.util.concurrent.ThreadFactoryBuilder;
 
 import org.eclipse.che.api.core.BadRequestException;
 import org.eclipse.che.api.core.ConflictException;
@@ -21,15 +22,21 @@ import org.eclipse.che.api.core.model.machine.Machine;
 import org.eclipse.che.api.core.model.machine.MachineConfig;
 import org.eclipse.che.api.core.model.machine.MachineStatus;
 import org.eclipse.che.api.core.model.workspace.Environment;
+import org.eclipse.che.api.core.util.LineConsumer;
+import org.eclipse.che.api.core.util.MessageConsumer;
+import org.eclipse.che.api.core.model.machine.MachineLogMessage;
+import org.eclipse.che.api.machine.server.MachineLogMessageImpl;
 import org.eclipse.che.api.machine.server.MachineManager;
 import org.eclipse.che.api.machine.server.exception.MachineException;
 import org.eclipse.che.api.machine.server.model.impl.MachineConfigImpl;
 import org.eclipse.che.api.machine.server.model.impl.MachineImpl;
+import org.eclipse.che.api.core.util.WebsocketMessageConsumer;
 import org.eclipse.che.api.workspace.server.env.spi.EnvironmentEngine;
 import org.slf4j.Logger;
 
 import javax.annotation.PreDestroy;
 import javax.inject.Inject;
+import java.io.IOException;
 import java.util.ArrayDeque;
 import java.util.ArrayList;
 import java.util.HashMap;
@@ -38,6 +45,9 @@ import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 import java.util.Queue;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
+import java.util.concurrent.TimeUnit;
 import java.util.concurrent.locks.ReadWriteLock;
 import java.util.function.Predicate;
 import java.util.stream.Collectors;
@@ -48,27 +58,36 @@ import static org.slf4j.LoggerFactory.getLogger;
 /**
  * author Alexander Garagatyi
  */
+// todo use containerName field to provide machine name, but do not allow to set it for user in hosted version
 public class CheEnvironmentEngine implements EnvironmentEngine {
-    public final static String ENVIRONMENT_TYPE = "che";
+    public final static String ENVIRONMENT_TYPE = "opencompose";
 
     private static final Logger LOG = getLogger(CheEnvironmentEngine.class);
 
     // 16 - experimental value for stripes count, it comes from default hash map size
     private static final Striped<ReadWriteLock> STRIPED = Striped.readWriteLock(16);
 
+    // todo move to holder
     private final Map<String, Queue<MachineConfigImpl>> startQueues;
     private final MachineManager                        machineManager;
     private final CheEnvironmentValidator               cheEnvironmentValidator;
+    private final CheEnvStartStrategy                   startStrategy;
+    // todo move to holder
     private final Map<String, List<MachineImpl>>        machines;
+    private final Map<String, EnvironmentHolder>        environments;
 
     private volatile boolean isPreDestroyInvoked;
 
     @Inject
-    public CheEnvironmentEngine(MachineManager machineManager, CheEnvironmentValidator cheEnvironmentValidator) {
+    public CheEnvironmentEngine(MachineManager machineManager,
+                                CheEnvironmentValidator cheEnvironmentValidator,
+                                CheEnvStartStrategy startStrategy) {
         this.machineManager = machineManager;
         this.cheEnvironmentValidator = cheEnvironmentValidator;
+        this.startStrategy = startStrategy;
         this.startQueues = new HashMap<>();
         this.machines = new HashMap<>();
+        this.environments = new HashMap<>();
     }
 
     @Override
@@ -76,33 +95,39 @@ public class CheEnvironmentEngine implements EnvironmentEngine {
         return ENVIRONMENT_TYPE;
     }
 
-    //todo add sorting of machines on start by links
     // todo what to do if machine needed for other services failed to start
 
 
     @Override
-    public List<Machine> start(String workspaceId, Environment env, boolean recover)
+    public List<Machine> start(String workspaceId,
+                               Environment env,
+                               String envName,
+                               boolean recover)
             throws ServerException, NotFoundException, ConflictException, IllegalArgumentException {
 
         // check old and new environment format
-        List<? extends MachineConfig> machineConfigs = cheEnvironmentValidator.parse(env);
+        List<MachineConfig> machineConfigs = cheEnvironmentValidator.parse(env);
+
+        machineConfigs = startStrategy.order(machineConfigs);
 
         List<MachineConfigImpl> configs = machineConfigs.stream()
                                                         .map(MachineConfigImpl::new)
                                                         .collect(Collectors.toList());
 
-        // Create a new start queue with a dev machine in the queue head
-        final MachineConfigImpl devCfg = removeFirstMatching(configs, MachineConfig::isDev);
-        configs.add(0, devCfg);
         acquireWriteLock(workspaceId);
         try {
+            environments.put(workspaceId, new EnvironmentHolder(null,
+                                                                null,
+                                                                new WebsocketMessageConsumer<>("workspace:" +
+                                                                                               workspaceId +
+                                                                                               ":environment_output")));
             startQueues.put(workspaceId, new ArrayDeque<>(configs));
             machines.put(workspaceId, new ArrayList<>());
         } finally {
             releaseWriteLock(workspaceId);
         }
 
-        startQueue(workspaceId, env.getName(), recover);
+        startQueue(workspaceId, envName, recover);
 
         acquireWriteLock(workspaceId);
         try {
@@ -135,11 +160,6 @@ public class CheEnvironmentEngine implements EnvironmentEngine {
         }
     }
 
-    @Override
-    public void stopMachine(String machineId) throws NotFoundException, ServerException {
-
-    }
-
     @VisibleForTesting
     void cleanupStartResources(String workspaceId) {
         acquireWriteLock(workspaceId);
@@ -169,19 +189,50 @@ public class CheEnvironmentEngine implements EnvironmentEngine {
     @VisibleForTesting
     void cleanup() {
         isPreDestroyInvoked = true;
+        final ExecutorService destroyMachinesExecutor =
+                Executors.newFixedThreadPool(2 * Runtime.getRuntime().availableProcessors(),
+                                             new ThreadFactoryBuilder().setNameFormat("DestroyMachine-%d")
+                                                                       .setDaemon(false)
+                                                                       .build());
         // Acquire all the locks
         for (int i = 0; i < STRIPED.size(); i++) {
             STRIPED.getAt(i).writeLock().lock();
         }
         try {
             startQueues.clear();
+
+            try {
+                for (MachineImpl machine : machineManager.getMachines()) {
+                    destroyMachinesExecutor.execute(() -> {
+                        try {
+                            machineManager.destroy(machine.getId(), false);
+                        } catch (NotFoundException ignore) {
+                            // it is ok, machine has been already destroyed
+                        } catch (Exception e) {
+                            LOG.warn(e.getLocalizedMessage());
+                        }
+                    });
+                }
+            } catch (MachineException e) {
+                LOG.error(e.getLocalizedMessage(), e);
+            }
+            destroyMachinesExecutor.shutdown();
         } finally {
             // Release all the locks
             for (int i = 0; i < STRIPED.size(); i++) {
                 STRIPED.getAt(i).writeLock().unlock();
             }
         }
-        // todo stop & cleanup machines
+        try {
+            if (!destroyMachinesExecutor.awaitTermination(50, TimeUnit.SECONDS)) {
+                destroyMachinesExecutor.shutdownNow();
+                if (!destroyMachinesExecutor.awaitTermination(10, TimeUnit.SECONDS)) {
+                    LOG.warn("Unable terminate destroy machines pool");
+                }
+            }
+        } catch (InterruptedException e) {
+            destroyMachinesExecutor.shutdownNow();
+        }
     }
 
     private List<Machine> toListOfMachines(List<MachineImpl> machineImpls) {
@@ -349,12 +400,14 @@ public class CheEnvironmentEngine implements EnvironmentEngine {
                                      boolean recover) throws ServerException,
                                                              NotFoundException,
                                                              ConflictException {
+        LineConsumer machineLogger = getMachineLogger(workspaceId, config.getName());
+
         MachineImpl machine;
         try {
             if (recover) {
-                machine = machineManager.recoverMachine(config, workspaceId, envName);
+                machine = machineManager.recoverMachine(config, workspaceId, envName, machineLogger);
             } else {
-                machine = machineManager.createMachineSync(config, workspaceId, envName);
+                machine = machineManager.createMachineSync(config, workspaceId, envName, machineLogger);
             }
         } catch (ConflictException x) {
             // The conflict is because of the already running machine
@@ -387,6 +440,30 @@ public class CheEnvironmentEngine implements EnvironmentEngine {
             throw new IllegalArgumentException(x.getLocalizedMessage(), x);
         }
         return machine;
+    }
+
+    private LineConsumer getMachineLogger(String workspaceId, String machine) throws ServerException {
+        MessageConsumer<MachineLogMessage> envMessageConsumer;
+        acquireReadLock(workspaceId);
+        try {
+            EnvironmentHolder environmentHolder = environments.get(workspaceId);
+            if (environmentHolder == null) {
+                //todo
+                throw new ServerException("");
+            }
+            envMessageConsumer = environmentHolder.outputConsumer;
+        } finally {
+            releaseReadLock(workspaceId);
+        }
+        return new LineConsumer() {
+            @Override
+            public void writeLine(String line) throws IOException {
+                envMessageConsumer.write(new MachineLogMessageImpl(machine, line));
+            }
+
+            @Override
+            public void close() throws IOException {}
+        };
     }
 
     private static <T> T removeFirstMatching(List<? extends T> elements, Predicate<T> predicate) {
@@ -425,5 +502,19 @@ public class CheEnvironmentEngine implements EnvironmentEngine {
     /** Short alias for releasing write lock for the given workspace. */
     private static void releaseWriteLock(String workspaceId) {
         STRIPED.get(workspaceId).writeLock().unlock();
+    }
+
+    private static class EnvironmentHolder {
+        Queue<MachineConfigImpl>                    startQueue;
+        List<MachineImpl>                           machines;
+        WebsocketMessageConsumer<MachineLogMessage> outputConsumer;
+
+        public EnvironmentHolder(Queue<MachineConfigImpl> startQueue,
+                                 List<MachineImpl> machines,
+                                 WebsocketMessageConsumer<MachineLogMessage> outputConsumer) {
+            this.startQueue = startQueue;
+            this.machines = machines;
+            this.outputConsumer = outputConsumer;
+        }
     }
 }

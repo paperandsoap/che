@@ -1105,8 +1105,13 @@ public class DockerConnector {
      * @throws InterruptedException
      *         if build process was interrupted
      */
+    // todo remove deprecated methods
     public String buildImage(final BuildImageParams params,
                              final ProgressMonitor progressMonitor) throws IOException, InterruptedException {
+        // todo cleanup after removal of deprecated methods
+        if (params.getRemote() != null) {
+            return buildImage(params, progressMonitor, null, dockerDaemonUri);
+        }
         final File tar = Files.createTempFile(null, ".tar").toFile();
         try {
             File[] files = new File[params.getFiles().size()];
@@ -1120,23 +1125,17 @@ public class DockerConnector {
 
     private String buildImage(final BuildImageParams params,
                               final ProgressMonitor progressMonitor,
-                              File tar, // tar from params.files() (uses temporary until delete deprecated methods)
-                              URI dockerDaemonUri) throws IOException, InterruptedException {
+                              DockerConnection dockerConnection) throws IOException, InterruptedException {
         final AuthConfigs authConfigs = params.getAuthConfigs();
         final String repository = params.getRepository();
         final String tag = params.getTag();
 
-        try (InputStream tarInput = new FileInputStream(tar);
-             DockerConnection connection = connectionFactory.openConnection(dockerDaemonUri)
-                                                            .method("POST")
-                                                            .path("/build")
-                                                            .query("rm", 1)
-                                                            .query("forcerm", 1)
-                                                            .header("Content-Type", "application/x-compressed-tar")
-                                                            .header("Content-Length", tar.length())
-                                                            .header("X-Registry-Config",
-                                                                    authResolver.getXRegistryConfigHeaderValue(authConfigs))
-                                                            .entity(tarInput)) {
+        try (DockerConnection connection = dockerConnection.method("POST")
+                                                           .path("/build")
+                                                           .query("rm", 1)
+                                                           .query("forcerm", 1)
+                                                           .header("X-Registry-Config",
+                                                                    authResolver.getXRegistryConfigHeaderValue(authConfigs))) {
             if (tag == null) {
                 addQueryParamIfNotNull(connection, "t", repository);
             } else {
@@ -1145,6 +1144,7 @@ public class DockerConnector {
             addQueryParamIfNotNull(connection, "memory", params.getMemoryLimit());
             addQueryParamIfNotNull(connection, "memswap", params.getMemorySwapLimit());
             addQueryParamIfNotNull(connection, "pull", params.isDoForcePull());
+            addQueryParamIfNotNull(connection, "dockerfile", params.getDockerfile());
             final DockerResponse response = connection.request();
             if (OK.getStatusCode() != response.getStatus()) {
                 throw getDockerException(response);
@@ -1195,6 +1195,29 @@ public class DockerConnector {
         }
     }
 
+    private String buildImage(final BuildImageParams params,
+                              final ProgressMonitor progressMonitor,
+                              File tar, // tar from params.files() (uses temporary until delete deprecated methods)
+                              URI dockerDaemonUri) throws IOException, InterruptedException {
+        if (tar != null) {
+            try (InputStream tarInput = new FileInputStream(tar)) {
+                return buildImage(params,
+                                  progressMonitor,
+                                  connectionFactory.openConnection(dockerDaemonUri)
+                                                   .header("Content-Type", "application/x-compressed-tar")
+                                                   .header("Content-Length", tar.length())
+                                                   .entity(tarInput));
+            }
+        } else if (params.getRemote() != null) {
+            return buildImage(params,
+                              progressMonitor,
+                              connectionFactory.openConnection(dockerDaemonUri)
+                                               .query("remote", params.getRemote()));
+        } else {
+            throw new IllegalArgumentException("Neither remote nor files parameters of build command is set");
+        }
+    }
+
     /**
      * @deprecated use {@link #removeImage(RemoveImageParams)} instead
      */
@@ -1225,7 +1248,7 @@ public class DockerConnector {
         removeImage(params, dockerDaemonUri);
     }
 
-    private void removeImage(final RemoveImageParams params,URI dockerDaemonUri) throws IOException {
+    private void removeImage(final RemoveImageParams params, URI dockerDaemonUri) throws IOException {
         try (DockerConnection connection = connectionFactory.openConnection(dockerDaemonUri)
                                                             .method("DELETE")
                                                             .path("/images/" + params.getImage())) {
