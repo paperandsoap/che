@@ -8,49 +8,26 @@
  * Contributors:
  *   Codenvy, S.A. - initial API and implementation
  *******************************************************************************/
-package org.eclipse.che.api.factory.shared.dto;
-
-import static org.eclipse.che.api.core.factory.FactoryParameter.Obligation.OPTIONAL;
-
-import org.eclipse.che.api.core.factory.FactoryParameter;
-import org.eclipse.che.dto.shared.DTO;
+package org.eclipse.che.api.factory.shared.model;
 
 /**
  * Describe IDE interface Look and Feel
  *
  * @author Sergii Kabashniuk
  */
-@DTO
 public interface Ide {
-
     /**
      * @return configuration of IDE on application loaded event.
      */
-    @FactoryParameter(obligation = OPTIONAL)
     OnAppLoaded getOnAppLoaded();
-
-    void setOnAppLoaded(OnAppLoaded onAppLoaded);
-
-    Ide withOnAppLoaded(OnAppLoaded onAppLoaded);
 
     /**
      * @return configuration of IDE on application closed event.
      */
-    @FactoryParameter(obligation = OPTIONAL)
     OnAppClosed getOnAppClosed();
-
-    void setOnAppClosed(OnAppClosed onAppClosed);
-
-    Ide withOnAppClosed(OnAppClosed onAppClosed);
 
     /**
      * @return configuration of IDE on projects loaded event.
      */
-    @FactoryParameter(obligation = OPTIONAL)
     OnProjectsLoaded getOnProjectsLoaded();
-
-    void setOnProjectsLoaded(OnProjectsLoaded onProjectsLoaded);
-
-    Ide withOnProjectsLoaded(OnProjectsLoaded onProjectsLoaded);
-
 }

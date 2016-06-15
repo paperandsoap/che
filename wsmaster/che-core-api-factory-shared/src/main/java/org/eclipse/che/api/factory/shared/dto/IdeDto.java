@@ -13,37 +13,45 @@ package org.eclipse.che.api.factory.shared.dto;
 import static org.eclipse.che.api.core.factory.FactoryParameter.Obligation.OPTIONAL;
 
 import org.eclipse.che.api.core.factory.FactoryParameter;
+import org.eclipse.che.api.factory.shared.model.Ide;
 import org.eclipse.che.dto.shared.DTO;
 
-import java.util.Map;
-
 /**
- * Describe ide action.
+ * Describe IDE interface Look and Feel
  *
  * @author Sergii Kabashniuk
  */
 @DTO
-public interface Action {
+public interface IdeDto extends Ide {
+
     /**
-     * Action Id
-     *
-     * @return id of action.
+     * @return configuration of IDE on application loaded event.
      */
     @FactoryParameter(obligation = OPTIONAL)
-    String getId();
+    OnAppLoadedDto getOnAppLoaded();
 
-    void setId(String id);
+    void setOnAppLoaded(OnAppLoadedDto onAppLoaded);
 
-    Action withId(String id);
+    IdeDto withOnAppLoaded(OnAppLoadedDto onAppLoaded);
 
-    /***
-     *
-     * @return Action properties
+    /**
+     * @return configuration of IDE on application closed event.
      */
     @FactoryParameter(obligation = OPTIONAL)
-    Map<String, String> getProperties();
+    OnAppClosedDto getOnAppClosed();
 
-    void setProperties(Map<String, String> properties);
+    void setOnAppClosed(OnAppClosedDto onAppClosed);
 
-    Action withProperties(Map<String, String> properties);
+    IdeDto withOnAppClosed(OnAppClosedDto onAppClosed);
+
+    /**
+     * @return configuration of IDE on projects loaded event.
+     */
+    @FactoryParameter(obligation = OPTIONAL)
+    OnProjectsLoadedDto getOnProjectsLoaded();
+
+    void setOnProjectsLoaded(OnProjectsLoadedDto onProjectsLoaded);
+
+    IdeDto withOnProjectsLoaded(OnProjectsLoadedDto onProjectsLoaded);
+
 }
