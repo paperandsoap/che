@@ -521,8 +521,26 @@ public final class ResourceManager {
         return ps.deleteItem(resource.getLocation()).then(new Function<Void, Void>() {
             @Override
             public Void apply(Void ignored) throws FunctionException {
-                store.dispose(resource.getLocation(), true);
+
+                Resource[] descToRemove = null;
+
+                if (resource instanceof Container) {
+                    final Optional<Resource[]> optDescendants = store.getAll(resource.getLocation());
+
+                    if (optDescendants.isPresent()) {
+                        descToRemove = optDescendants.get();
+                    }
+                }
+
+                store.dispose(resource.getLocation(), !resource.isFile());
+
                 eventBus.fireEvent(new ResourceChangedEvent(new ResourceDeltaImpl(resource, REMOVED | DERIVED)));
+
+                if (descToRemove != null) {
+                    for (Resource toRemove : descToRemove) {
+                        eventBus.fireEvent(new ResourceChangedEvent(new ResourceDeltaImpl(toRemove, REMOVED | DERIVED)));
+                    }
+                }
 
                 return null;
             }

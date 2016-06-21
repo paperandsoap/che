@@ -95,4 +95,14 @@ public class ExternalResourceDelta implements ResourceDelta {
     public Resource getResource() {
         return null;
     }
+
+    /** {@inheritDoc} */
+    @Override
+    public String toString() {
+        return "ExternalResourceDelta{" +
+               "newPath=" + newPath +
+               ", oldPath=" + oldPath +
+               ", status=" + status +
+               '}';
+    }
 }

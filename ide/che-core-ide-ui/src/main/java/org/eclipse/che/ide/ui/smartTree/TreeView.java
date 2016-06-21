@@ -209,6 +209,10 @@ public class TreeView {
     }
 
     public void onLoadChange(NodeDescriptor node, boolean loading) {
+        if (node == null) {
+            return;
+        }
+
         Element rootContainer = getNodeContainer(node);
         if (loading) {
             rootContainer.addClassName(tree.getTreeStyles().styles().loading());

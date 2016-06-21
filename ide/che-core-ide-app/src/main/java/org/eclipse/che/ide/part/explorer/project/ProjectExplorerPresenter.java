@@ -177,6 +177,26 @@ public class ProjectExplorerPresenter extends BasePresenter implements ActionDel
         return node;
     }
 
+    private Node getProjectNode(Path path) {
+        Node node;
+
+        node = getNode(path);
+
+        if (node == null) {
+            return null;
+        }
+
+        while (!(node instanceof ResourceNode && ((ResourceNode)node).getData().isProject())) {
+            node = node.getParent();
+
+            if (node == null) {
+                return null;
+            }
+        }
+
+        return node;
+    }
+
     @SuppressWarnings("unchecked")
     private void onResourceAdded(ResourceDelta delta) {
         if ((delta.getFlags() & DERIVED) == 0) {
@@ -190,11 +210,24 @@ public class ProjectExplorerPresenter extends BasePresenter implements ActionDel
 
         if ((delta.getFlags() & (MOVED_FROM | MOVED_TO)) != 0) {
 
-            final Node node = MoreObjects.firstNonNull(getNode(delta.getFromPath()), getParentNode(delta.getFromPath()));
-            if (node != null && tree.isExpanded(node)) {
-                tree.getNodeLoader().loadChildren(node, true);
+            final Node node1 = getProjectNode(delta.getFromPath());
+            final Node node2 = getProjectNode(delta.getToPath());
+
+            if (node1.equals(node2)) {
+                if (tree.isExpanded(node1)) {
+                    tree.getNodeLoader().loadChildren(node1, true);
+                }
+            } else {
+                if (tree.isExpanded(node1)) {
+                    tree.getNodeLoader().loadChildren(node1, true);
+                }
+
+                if (node2 != null && tree.isExpanded(node2)) {
+                    tree.getNodeLoader().loadChildren(node2, true);
+                }
             }
 
+            return;
         } else {
             //process root project
             if (resource.getLocation().segmentCount() == 1 && resource.getResourceType() == PROJECT) {

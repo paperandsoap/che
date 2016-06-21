@@ -131,16 +131,11 @@ public class NodeLoader implements LoaderHandler.HasLoaderHandlers {
             }
 
             //Iterate on nested descendants to make additional load request
-            if (event.isReloadExpandedChild()) {
-                Iterable<Node> filter = Iterables.filter(tree.getNodeStorage().getChildren(parent), new Predicate<Node>() {
-                    @Override
-                    public boolean apply(@Nullable Node input) {
-                        return tree.isExpanded(input);
+            if (childRequested.remove(parent)) {
+                for (Node node : tree.getNodeStorage().getChildren(parent)) {
+                    if (tree.isExpanded(node)) {
+                        loadChildren(node, true);
                     }
-                });
-
-                for (Node node : filter) {
-                    loadChildren(node, event.isReloadExpandedChild());
                 }
             }
 
@@ -329,8 +324,8 @@ public class NodeLoader implements LoaderHandler.HasLoaderHandlers {
      *         parent node, children which have been loaded
      */
     private void onLoadSuccess(@NotNull final Node parent, List<Node> children) {
-        boolean reloadExpandedChild = childRequested.remove(parent);
-        fireEvent(new LoadEvent(parent, children, reloadExpandedChild));
+//        boolean reloadExpandedChild = childRequested.remove(parent);
+        fireEvent(new LoadEvent(parent, children/*, reloadExpandedChild*/));
     }
 
     /**
@@ -519,5 +514,9 @@ public class NodeLoader implements LoaderHandler.HasLoaderHandlers {
             handlerRegistration.add(addLoadHandler(cTreeNodeLoaderHandler));
             handlerRegistration.add(addLoadExceptionHandler(cTreeNodeLoaderHandler));
         }
+    }
+
+    public boolean isBusy() {
+        return !childRequested.isEmpty();
     }
 }

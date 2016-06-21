@@ -4,19 +4,24 @@
  * are made available under the terms of the Eclipse Public License v1.0
  * which accompanies this distribution, and is available at
  * http://www.eclipse.org/legal/epl-v10.html
- *
+ * <p>
  * Contributors:
- *   Codenvy, S.A. - initial API and implementation
+ * Codenvy, S.A. - initial API and implementation
  *******************************************************************************/
 package org.eclipse.che.ide.ext.java.client.refactoring;
 
 import com.google.inject.Inject;
 import com.google.inject.Singleton;
+import com.google.web.bindery.event.shared.EventBus;
 
+import org.eclipse.che.api.promises.client.Operation;
+import org.eclipse.che.api.promises.client.OperationException;
 import org.eclipse.che.ide.api.app.AppContext;
 import org.eclipse.che.ide.api.resources.ExternalResourceDelta;
+import org.eclipse.che.ide.api.resources.ResourceDelta;
 import org.eclipse.che.ide.ext.java.shared.dto.refactoring.ChangeInfo;
 import org.eclipse.che.ide.resource.Path;
+import org.eclipse.che.ide.resources.reveal.RevealResourceEvent;
 
 import java.util.Arrays;
 import java.util.List;
@@ -38,10 +43,13 @@ import static org.eclipse.che.ide.api.resources.ResourceDelta.UPDATED;
 public class RefactoringUpdater {
 
     private final AppContext appContext;
+    private       EventBus   eventBus;
 
     @Inject
-    public RefactoringUpdater(AppContext appContext) {
+    public RefactoringUpdater(AppContext appContext,
+                              EventBus eventBus) {
         this.appContext = appContext;
+        this.eventBus = eventBus;
     }
 
     /**
@@ -91,7 +99,16 @@ public class RefactoringUpdater {
         }
 
         if (deltas.length > 0) {
-            appContext.getWorkspaceRoot().synchronize(deltas);
+            appContext.getWorkspaceRoot().synchronize(deltas).then(new Operation<ResourceDelta[]>() {
+                @Override
+                public void apply(final ResourceDelta[] appliedDeltas) throws OperationException {
+                    for (ResourceDelta delta : appliedDeltas) {
+                        if ((delta.getFlags() & (MOVED_FROM | MOVED_TO)) != 0) {
+                            eventBus.fireEvent(new RevealResourceEvent(delta.getToPath()));
+                        }
+                    }
+                }
+            });
         }
     }
 }

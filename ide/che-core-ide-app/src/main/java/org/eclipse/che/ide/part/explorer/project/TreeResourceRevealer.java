@@ -11,6 +11,7 @@
 package org.eclipse.che.ide.part.explorer.project;
 
 import com.google.common.base.Optional;
+import com.google.gwt.core.client.Scheduler;
 import com.google.gwt.event.shared.HandlerRegistration;
 import com.google.gwt.user.client.rpc.AsyncCallback;
 import com.google.inject.Inject;
@@ -123,36 +124,47 @@ public class TreeResourceRevealer {
         });
     }
 
-    protected void reveal(Path path, final AsyncCallback<Node> callback) {
+    protected void reveal(final Path path, final AsyncCallback<Node> callback) {
         if (path == null) {
             callback.onFailure(new IllegalArgumentException("Invalid search path"));
         }
 
-        final Optional<ResourceNode> optRoot = getRootResourceNode(path);
-
-        if (!optRoot.isPresent()) {
-            callback.onFailure(new IllegalStateException());
-            return;
-        }
-
-        final ResourceNode root = optRoot.get();
-
-        if (root.getData().getLocation().equals(path)) {
-            callback.onSuccess(root);
-            return;
-        }
-
-        expandToPath(root, path).then(new Operation<ResourceNode>() {
+        Scheduler.get().scheduleFixedDelay(new Scheduler.RepeatingCommand() {
             @Override
-            public void apply(ResourceNode node) throws OperationException {
-                callback.onSuccess(node);
+            public boolean execute() {
+                if (tree.getNodeLoader().isBusy()) {
+                    return true;
+                }
+
+                final Optional<ResourceNode> optRoot = getRootResourceNode(path);
+
+                if (!optRoot.isPresent()) {
+                    callback.onFailure(new IllegalStateException());
+                    return false;
+                }
+
+                final ResourceNode root = optRoot.get();
+
+                if (root.getData().getLocation().equals(path)) {
+                    callback.onSuccess(root);
+                    return false;
+                }
+
+                expandToPath(root, path).then(new Operation<ResourceNode>() {
+                    @Override
+                    public void apply(ResourceNode node) throws OperationException {
+                        callback.onSuccess(node);
+                    }
+                }).catchError(new Operation<PromiseError>() {
+                    @Override
+                    public void apply(PromiseError arg) throws OperationException {
+                        callback.onFailure(arg.getCause());
+                    }
+                });
+
+                return false;
             }
-        }).catchError(new Operation<PromiseError>() {
-            @Override
-            public void apply(PromiseError arg) throws OperationException {
-                callback.onFailure(arg.getCause());
-            }
-        });
+        }, 500);
 
     }
 
