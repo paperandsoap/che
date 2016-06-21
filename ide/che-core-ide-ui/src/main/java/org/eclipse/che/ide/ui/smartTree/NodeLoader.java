@@ -324,8 +324,7 @@ public class NodeLoader implements LoaderHandler.HasLoaderHandlers {
      *         parent node, children which have been loaded
      */
     private void onLoadSuccess(@NotNull final Node parent, List<Node> children) {
-//        boolean reloadExpandedChild = childRequested.remove(parent);
-        fireEvent(new LoadEvent(parent, children/*, reloadExpandedChild*/));
+        fireEvent(new LoadEvent(parent, children));
     }
 
     /**
