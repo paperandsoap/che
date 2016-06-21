@@ -179,19 +179,15 @@ class JGitConnection implements GitConnection {
     private static final String ADD_ALL_OPTION            = "all";
 
     // Push Response Constants
-    private static final String BRANCH_REFSPEC_SEPERATOR = " -> ";
-    private static final String REFSPEC_COLON = ":";
-    private static final String KEY_COMMIT_MESSAGE = "Message";
-    private static final String KEY_RESULT = "Result";
-    private static final String KEY_REMOTENAME = "RemoteName";
-    private static final String KEY_LOCALNAME = "LocalName";
-    private static final String INFO_PUSH_ATTEMPT_IGNORED_UP_TO_DATE    = "Could not push because the repository is up-to-date.";
-    private static final String ERROR_PUSH_ATTEMPT_FAILED_WITHMSG       = "Could not push refspec {0} to the branch {1}. Try to merge " +
-                                                                          "the remote changes using pull, and then push again. \n Error " +
-                                                                          "Status: {2}, Error message {3}. \n";
-    private static final String ERROR_PUSH_ATTEMPT_FAILED_WITHOUTMSG    = "Could not push refspec {0} to the branch {1}. Try to merge " +
-                                                                          "the remote changes using pull, and then push again. \n " +
-                                                                          "Error Status: {2}. \n";
+    private static final String BRANCH_REFSPEC_SEPERATOR             = " -> ";
+    private static final String REFSPEC_COLON                        = ":";
+    private static final String KEY_COMMIT_MESSAGE                   = "Message";
+    private static final String KEY_RESULT                           = "Result";
+    private static final String KEY_REMOTENAME                       = "RemoteName";
+    private static final String KEY_LOCALNAME                        = "LocalName";
+    private static final String INFO_PUSH_ATTEMPT_IGNORED_UP_TO_DATE = "Could not push because the repository is up-to-date.";
+    private static final String ERROR_PUSH_ATTEMPT_FAILED            = "failed to push '%s' to '%s'. Try to merge " +
+                                                                       "remote changes using pull, and then push again.";
 
     private static final String ERROR_UPDATE_REMOTE_NAME_MISSING   = "Update operation failed, remote name is required.";
     private static final String ERROR_ADD_REMOTE_NAME_MISSING      = "Add operation failed, remote name is required.";
@@ -978,60 +974,60 @@ class JGitConnection implements GitConnection {
 
     @Override
     public PushResponse push(PushRequest request) throws GitException, UnauthorizedException {
+        List<Map<String, String>> updates = new ArrayList<>();
+        String currentBranch = getCurrentBranch();
         String remoteName = request.getRemote();
         String remoteUri = getRepository().getConfig().getString(ConfigConstants.CONFIG_REMOTE_SECTION, remoteName,
-                ConfigConstants.CONFIG_KEY_URL);
-        PushResponse pushResponseDto = newDto(PushResponse.class);
+                                                                 ConfigConstants.CONFIG_KEY_URL);
+        PushCommand pushCommand = getGit().push();
+        if (request.getRemote() != null) {
+            pushCommand.setRemote(remoteName);
+        }
+        List<String> refSpec = request.getRefSpec();
+        if (!refSpec.isEmpty()) {
+            List<RefSpec> refSpecInst = new ArrayList<>(refSpec.size());
+            refSpecInst.addAll(refSpec.stream().map(RefSpec::new).collect(Collectors.toList()));
+            pushCommand.setRefSpecs(refSpecInst);
+        }
+        pushCommand.setForce(request.isForce());
+        int timeout = request.getTimeout();
+        if (timeout > 0) {
+            pushCommand.setTimeout(timeout);
+        }
         try {
-            PushCommand pushCommand = getGit().push();
-
-            if (request.getRemote() != null) {
-                pushCommand.setRemote(remoteName);
-            }
-            List<String> refSpec = request.getRefSpec();
-            if (!refSpec.isEmpty()) {
-                List<RefSpec> refSpecInst = new ArrayList<>(refSpec.size());
-                refSpecInst.addAll(refSpec.stream().map(RefSpec::new).collect(Collectors.toList()));
-                pushCommand.setRefSpecs(refSpecInst);
-            }
-
-            pushCommand.setForce(request.isForce());
-
-            int timeout = request.getTimeout();
-            if (timeout > 0) {
-                pushCommand.setTimeout(timeout);
-            }
-
             @SuppressWarnings("unchecked")
             Iterable<PushResult> pushResults = (Iterable<PushResult>)executeRemoteCommand(remoteUri, pushCommand);
             PushResult pushResult = pushResults.iterator().next();
-            return addCommandOutputUpdates(pushResponseDto, request, pushResult);
-        } catch (GitAPIException exception) {
-            if ("origin: not found.".equals(exception.getMessage())) {
-                throw new GitException(ERROR_NO_REMOTE_REPOSITORY, exception);
-            } else {
-                throw new GitException(exception.getMessage(), exception);
-            }
-        }
-    }
+            String commandOutput = pushResult.getMessages();
+            Collection<RemoteRefUpdate> refUpdates = pushResult.getRemoteUpdates();
 
-    private PushResponse addCommandOutputUpdates(PushResponse pushResponseDto, final PushRequest request,
-                                                 final PushResult result) throws GitException {
-        String commandOutput = result.getMessages();
-        final Collection<RemoteRefUpdate> refUpdates = result.getRemoteUpdates();
-        final List<Map<String, String>> updates = new ArrayList<>();
-        final String currentBranch = getCurrentBranch();
-
-        for (RemoteRefUpdate remoteRefUpdate : refUpdates) {
-            final String remoteRefName = remoteRefUpdate.getRemoteName();
-            // check status only for branch given in the URL or tags - (handle special "refs/for" case)
-            String shortenRefFor = remoteRefName.startsWith("refs/for/") ?
-                    remoteRefName.substring("refs/for/".length()) :
-                    remoteRefName;
-            if (currentBranch.equals(Repository.shortenRefName(remoteRefName)) || currentBranch.equals(shortenRefFor)
-                    || remoteRefName.startsWith(Constants.R_TAGS)) {
+            for (RemoteRefUpdate remoteRefUpdate : refUpdates) {
+                final String remoteRefName = remoteRefUpdate.getRemoteName();
+                // check status only for branch given in the URL or tags - (handle special "refs/for" case)
+                String shortenRefFor = remoteRefName.startsWith("refs/for/") ?
+                                       remoteRefName.substring("refs/for/".length()) :
+                                       remoteRefName;
+                if (!currentBranch.equals(Repository.shortenRefName(remoteRefName)) && !currentBranch.equals(shortenRefFor)
+                    && !remoteRefName.startsWith(Constants.R_TAGS)) {
+                    continue;
+                }
                 Map<String, String> update = new HashMap<>();
                 RemoteRefUpdate.Status status = remoteRefUpdate.getStatus();
+                if (status != RemoteRefUpdate.Status.OK) {
+                    List<String> refSpecs = request.getRefSpec();
+                    if (remoteRefUpdate.getStatus() == RemoteRefUpdate.Status.UP_TO_DATE) {
+                        commandOutput = INFO_PUSH_ATTEMPT_IGNORED_UP_TO_DATE;
+                    } else {
+                        String remoteBranch = !refSpecs.isEmpty() ? refSpecs.get(0).split(REFSPEC_COLON)[1] : "master";
+                        String errorMessage =
+                                String.format(ERROR_PUSH_ATTEMPT_FAILED, currentBranch + BRANCH_REFSPEC_SEPERATOR + remoteBranch,
+                                              remoteUri);
+                        if (remoteRefUpdate.getMessage() != null) {
+                            errorMessage += "\nError errorMessage: " + remoteRefUpdate.getMessage() + ".";
+                        }
+                        throw new GitException(errorMessage);
+                    }
+                }
                 if (status != RemoteRefUpdate.Status.UP_TO_DATE || !remoteRefName.startsWith(Constants.R_TAGS)) {
                     update.put(KEY_COMMIT_MESSAGE, remoteRefUpdate.getMessage());
                     update.put(KEY_RESULT, status.name());
@@ -1045,31 +1041,15 @@ class JGitConnection implements GitConnection {
                     }
                     updates.add(update);
                 }
-                if (status != RemoteRefUpdate.Status.OK) {
-                    commandOutput = buildPushFailedMessage(request, remoteRefUpdate, currentBranch);
-                }
             }
-        }
-        return pushResponseDto.withCommandOutput(commandOutput).withUpdates(updates);
-    }
-
-    private String buildPushFailedMessage(final PushRequest request, final RemoteRefUpdate remoteRefUpdate,
-                                          final String currentBranch) {
-        String message;
-        if (remoteRefUpdate.getStatus() == RemoteRefUpdate.Status.UP_TO_DATE) {
-            message = INFO_PUSH_ATTEMPT_IGNORED_UP_TO_DATE;
-        } else {
-            String refspec =
-                    currentBranch + BRANCH_REFSPEC_SEPERATOR + request.getRefSpec().get(0).split(REFSPEC_COLON)[1];
-            if (remoteRefUpdate.getMessage() != null) {
-                message = String.format(ERROR_PUSH_ATTEMPT_FAILED_WITHMSG, refspec, request.getRemote(),
-                        remoteRefUpdate.getStatus(), remoteRefUpdate.getMessage());
+            return newDto(PushResponse.class).withCommandOutput(commandOutput).withUpdates(updates);
+        } catch (GitAPIException exception) {
+            if ("origin: not found.".equals(exception.getMessage())) {
+                throw new GitException(ERROR_NO_REMOTE_REPOSITORY, exception);
             } else {
-                message = String.format(ERROR_PUSH_ATTEMPT_FAILED_WITHOUTMSG, refspec, request.getRemote(),
-                        remoteRefUpdate.getStatus());
+                throw new GitException(exception.getMessage(), exception);
             }
         }
-        return message;
     }
 
     @Override
