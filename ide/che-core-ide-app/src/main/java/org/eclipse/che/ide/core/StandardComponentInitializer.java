@@ -25,8 +25,6 @@ import org.eclipse.che.ide.resources.action.RevealResourceAction;
 import org.eclipse.che.ide.resources.action.CopyResourceAction;
 import org.eclipse.che.ide.resources.action.CutResourceAction;
 import org.eclipse.che.ide.resources.action.PasteResourceAction;
-import org.eclipse.che.ide.actions.RedirectToDashboardProjectsAction;
-import org.eclipse.che.ide.actions.RedirectToDashboardWorkspacesAction;
 import org.eclipse.che.ide.actions.ShowReferenceAction;
 import org.eclipse.che.ide.actions.CreateProjectAction;
 import org.eclipse.che.ide.actions.DeleteResourceAction;
@@ -270,12 +268,6 @@ public class StandardComponentInitializer {
     private ShowReferenceAction showReferenceAction;
 
     @Inject
-    private RedirectToDashboardProjectsAction redirectToDashboardProjectsAction;
-
-    @Inject
-    private RedirectToDashboardWorkspacesAction redirectToDashboardWorkspacesAction;
-
-    @Inject
     private RevealResourceAction revealResourceAction;
 
     @Inject
@@ -507,13 +499,8 @@ public class StandardComponentInitializer {
 
         //Compose Profile menu
         DefaultActionGroup profileGroup = (DefaultActionGroup)actionManager.getAction(IdeActions.GROUP_PROFILE);
-        actionManager.registerAction("redirectToDashboardProjectsAction", redirectToDashboardProjectsAction);
-        actionManager.registerAction("redirectToDashboardWorkspacesAction", redirectToDashboardWorkspacesAction);
         actionManager.registerAction("showPreferences", showPreferencesAction);
-        profileGroup.add(redirectToDashboardProjectsAction);
-        profileGroup.add(redirectToDashboardWorkspacesAction);
 
-        profileGroup.addSeparator();
         profileGroup.add(showPreferencesAction);
 
         // Compose Help menu
@@ -630,4 +617,5 @@ public class StandardComponentInitializer {
         public void actionPerformed(ActionEvent e) {
         }
     }
+
 }
