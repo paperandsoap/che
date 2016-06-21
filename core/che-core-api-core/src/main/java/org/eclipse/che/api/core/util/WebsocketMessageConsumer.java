@@ -16,7 +16,7 @@ import com.google.gson.GsonBuilder;
 import java.io.IOException;
 
 /**
- * Message consumer that send messages to specified websocket channel
+ * Message consumer that sends messages to specified websocket channel
  *
  * @author Alexander Garagatyi
  */

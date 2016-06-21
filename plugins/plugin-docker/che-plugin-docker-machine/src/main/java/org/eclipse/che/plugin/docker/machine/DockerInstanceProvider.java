@@ -321,14 +321,14 @@ public class DockerInstanceProvider implements InstanceProvider {
                               machineImageName,
                               creationLogsOutput);
     }
-//todo do not publish all exposed ports to host, publish only ports from ports field
+
     protected Instance createInstanceFromImage(final Machine machine, String machineContainerName,
                                                final LineConsumer creationLogsOutput) throws NotFoundException,
                                                                                              MachineException {
         final DockerMachineSource dockerMachineSource = new DockerMachineSource(machine.getConfig().getSource());
 
         // todo bug is here; impossible to create machines from image (not snapshot case).
-        // todo Comment snapshot workaround to fix it for demo
+        // commented snapshot as workaround to fix it for demo
 //        if (snapshotUseRegistry) {
         pullImage(dockerMachineSource, creationLogsOutput);
 //        }
@@ -519,10 +519,6 @@ public class DockerInstanceProvider implements InstanceProvider {
                                     final LineConsumer outputConsumer)
             throws MachineException {
         try {
-            // todo
-            // do not create network for 1 container env
-            // support overlay + default network + bridge
-
             String networkName = machine.getWorkspaceId();
             createNetwork(networkName);
 
@@ -574,8 +570,17 @@ public class DockerInstanceProvider implements InstanceProvider {
             // Done
             // todo or set something to ports that should be published only - servers + field ports
 
-            // todo respect machine links
-            // todo respect volumesFrom, volumes
+            // todo machine links - add alias. Or add alias by machine name
+
+            // todo respect volumesFrom
+
+            //todo check how to prevent insertion labels that can broke docker/swarm or make them unsecure
+
+            //todo remove network on ws stop
+
+            // todo
+            // do not create network for 1 container env
+            // support overlay + default network + bridge
 
             final HostConfig hostConfig = new HostConfig();
             hostConfig.withBinds(volumes)

@@ -10,7 +10,7 @@
  *******************************************************************************/
 package org.eclipse.che.api.core.model.workspace;
 
-import org.eclipse.che.api.core.model.machine.MachineConfig2;
+import org.eclipse.che.api.core.model.machine.MachineExtension;
 
 import java.util.Map;
 
@@ -26,5 +26,5 @@ public interface Environment {
      */
     EnvironmentRecipe getRecipe();
 
-    Map<String, ? extends MachineConfig2> getMachines();
+    Map<String, ? extends MachineExtension> getMachines();
 }

@@ -17,7 +17,7 @@ import com.google.common.base.Joiner;
 import org.eclipse.che.api.core.BadRequestException;
 import org.eclipse.che.api.core.ServerException;
 import org.eclipse.che.api.core.model.machine.MachineConfig;
-import org.eclipse.che.api.core.model.machine.MachineConfig2;
+import org.eclipse.che.api.core.model.machine.MachineExtension;
 import org.eclipse.che.api.core.model.machine.ServerConf;
 import org.eclipse.che.api.core.model.workspace.Environment;
 import org.eclipse.che.api.core.model.workspace.EnvironmentRecipe;
@@ -30,7 +30,7 @@ import org.eclipse.che.api.workspace.server.env.impl.che.opencompose.impl.Enviro
 import org.eclipse.che.api.workspace.server.env.impl.che.opencompose.impl.ServiceImpl;
 import org.eclipse.che.api.workspace.server.env.spi.EnvironmentValidator;
 import org.eclipse.che.api.workspace.server.model.impl.EnvironmentImpl;
-import org.eclipse.che.api.workspace.server.model.impl.MachineConfig2Impl;
+import org.eclipse.che.api.workspace.server.model.impl.MachineExtensionImpl;
 import org.eclipse.che.commons.env.EnvironmentContext;
 import org.eclipse.che.commons.lang.IoUtil;
 import org.slf4j.Logger;
@@ -89,9 +89,9 @@ public class CheEnvironmentValidator implements EnvironmentValidator {
         List<? extends MachineConfig> machineConfigs = validateAndReturnMachines(envImpl.getRecipe());
 
         for (MachineConfig machineConfig : machineConfigs) {
-            MachineConfig2 machineConfig2 = env.getMachines().get(machineConfig.getName());
-            if (machineConfig2 == null) {
-                envImpl.getMachines().put(machineConfig.getName(), new MachineConfig2Impl(null, null));
+            MachineExtension machineExtension = env.getMachines().get(machineConfig.getName());
+            if (machineExtension == null) {
+                envImpl.getMachines().put(machineConfig.getName(), new MachineExtensionImpl(null, null));
             }
         }
 

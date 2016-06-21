@@ -29,9 +29,9 @@ public interface EnvironmentDto extends Environment {
     EnvironmentDto withRecipe(EnvironmentRecipeDto recipe);
 
     @Override
-    Map<String, MachineConfig2Dto> getMachines();
+    Map<String, MachineExtensionDto> getMachines();
 
-    void setMachines(Map<String, MachineConfig2Dto> machines);
+    void setMachines(Map<String, MachineExtensionDto> machines);
 
-    EnvironmentDto withMachines(Map<String, MachineConfig2Dto> machines);
+    EnvironmentDto withMachines(Map<String, MachineExtensionDto> machines);
 }

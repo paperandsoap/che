@@ -10,7 +10,7 @@
  *******************************************************************************/
 package org.eclipse.che.api.workspace.server.model.impl;
 
-import org.eclipse.che.api.core.model.machine.MachineConfig2;
+import org.eclipse.che.api.core.model.machine.MachineExtension;
 import org.eclipse.che.api.core.model.machine.ServerConf;
 import org.eclipse.che.api.machine.server.model.impl.ServerConfImpl;
 
@@ -24,12 +24,12 @@ import java.util.stream.Collectors;
 /**
  * @author Alexander Garagatyi
  */
-public class MachineConfig2Impl implements MachineConfig2 {
+public class MachineExtensionImpl implements MachineExtension {
     private List<String> agents;
     private Map<String, ServerConfImpl> servers;
 
-    public MachineConfig2Impl(List<String> agents,
-                              Map<String, ServerConf> servers) {
+    public MachineExtensionImpl(List<String> agents,
+                                Map<String, ServerConf> servers) {
         this.agents = agents;
         if (servers != null) {
             this.servers = servers.entrySet()
@@ -39,7 +39,7 @@ public class MachineConfig2Impl implements MachineConfig2 {
         }
     }
 
-    public MachineConfig2Impl(MachineConfig2 config) {
+    public MachineExtensionImpl(MachineExtension config) {
         this(config.getAgents(), config.getServers()
                                        .entrySet()
                                        .stream()
@@ -75,8 +75,8 @@ public class MachineConfig2Impl implements MachineConfig2 {
     @Override
     public boolean equals(Object o) {
         if (this == o) return true;
-        if (!(o instanceof MachineConfig2Impl)) return false;
-        MachineConfig2Impl that = (MachineConfig2Impl)o;
+        if (!(o instanceof MachineExtensionImpl)) return false;
+        MachineExtensionImpl that = (MachineExtensionImpl)o;
         return Objects.equals(agents, that.agents) &&
                Objects.equals(servers, that.servers);
     }
@@ -88,7 +88,7 @@ public class MachineConfig2Impl implements MachineConfig2 {
 
     @Override
     public String toString() {
-        return "MachineConfig2Impl{" +
+        return "MachineExtensionImpl{" +
                "agents=" + agents +
                ", servers=" + servers +
                '}';

@@ -15,11 +15,25 @@ package org.eclipse.che.api.core.model.workspace;
  */
 public interface EnvironmentRecipe {
 
+    /**
+     * Type of the environment, e.g. opencompose
+     */
     String getType();
 
+    /**
+     * Content type of the environment recipe
+     */
     String getContentType();
 
+    /**
+     * Content of an environment recipe.
+     * Content and location fields are mutually exclusive
+     */
     String getContent();
 
+    /**
+     * Location of an environment recipe.
+     * Content and location fields are mutually exclusive
+     */
     String getLocation();
 }

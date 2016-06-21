@@ -16,7 +16,7 @@ import java.util.Map;
 /**
  * @author Alexander Garagatyi
  */
-public interface MachineConfig2 {
+public interface MachineExtension {
     List<String> getAgents();
 
     Map<String, ? extends ServerConf> getServers();

@@ -14,7 +14,13 @@ package org.eclipse.che.api.core.model.machine;
  * author Alexander Garagatyi
  */
 public interface MachineLogMessage {
+    /**
+     * Content of log message
+     */
     String getContent();
-    // todo name or ID?
+
+    /**
+     * Machine name
+     */
     String getMachine();
 }

@@ -20,10 +20,12 @@ import java.util.Optional;
 import java.util.Set;
 import java.util.stream.Collectors;
 
+import static java.lang.String.format;
+
 /**
  * author Alexander Garagatyi
  */
-public class DependenciesBasedCheEnvStartStrategy implements CheEnvStartStrategy {
+public class DefaultCheEnvStartStrategy implements CheEnvStartStrategy {
     @Override
     public List<MachineConfig> order(List<MachineConfig> configs) throws IllegalArgumentException {
         configs = new ArrayList<>(configs);
@@ -47,33 +49,46 @@ public class DependenciesBasedCheEnvStartStrategy implements CheEnvStartStrategy
             throw new IllegalArgumentException("Configs contains machines with duplicate name");
         }
 
+        // create dependency graph
+        Map<String, List<String>> dependencies = new HashMap<>(configs.size());
+        for (MachineConfig config : configs) {
+            ArrayList<String> machineDependencies = new ArrayList<>(config.getDependsOn().size() + config.getMachineLinks().size());
+
+            machineDependencies.addAll(config.getDependsOn());
+
+            for (String link : config.getMachineLinks()) {
+                machineDependencies.add(getServiceFromMachineLink(link));
+            }
+            dependencies.put(config.getName(), machineDependencies);
+        }
+
         boolean weightEvaluatedInCycleRun = true;
-        while (weights.size() != configs.size() && weightEvaluatedInCycleRun) {
+        while (weights.size() != dependencies.size() && weightEvaluatedInCycleRun) {
             weightEvaluatedInCycleRun = false;
-            for (MachineConfig config : configs) {
+            for (String service : dependencies.keySet()) {
                 // todo if type is not `docker` put machine in the end of start queue
                 // process not yet processed machines only
-                if (machinesLeft.contains(config.getName())) {
-                    if (config.getDependsOn().size() == 0) {
+                if (machinesLeft.contains(service)) {
+                    if (dependencies.get(service).size() == 0) {
                         // no links - smallest weight 0
-                        weights.put(config.getName(), 0);
-                        machinesLeft.remove(config.getName());
+                        weights.put(service, 0);
+                        machinesLeft.remove(service);
                         weightEvaluatedInCycleRun = true;
                     } else {
                         // machine has depends on entry - check if it has not weighted connection
-                        Optional<String> nonWeightedLink = config.getDependsOn()
-                                                                 .stream()
-                                                                 .filter(machinesLeft::contains)
-                                                                 .findAny();
+                        Optional<String> nonWeightedLink = dependencies.get(service)
+                                                                       .stream()
+                                                                       .filter(machinesLeft::contains)
+                                                                       .findAny();
                         if (!nonWeightedLink.isPresent()) {
                             // all connections are weighted - lets evaluate current machine
-                            Optional<String> maxWeight = config.getDependsOn()
-                                                               .stream()
-                                                               .max((o1, o2) -> weights.get(o1).compareTo(weights.get(o2)));
+                            Optional<String> maxWeight = dependencies.get(service)
+                                                                     .stream()
+                                                                     .max((o1, o2) -> weights.get(o1).compareTo(weights.get(o2)));
                             // optional can't empty because size of the list is checked above
                             //noinspection OptionalGetWithoutIsPresent
-                            weights.put(config.getName(), weights.get(maxWeight.get()) + 1);
-                            machinesLeft.remove(config.getName());
+                            weights.put(service, weights.get(maxWeight.get()) + 1);
+                            machinesLeft.remove(service);
                             weightEvaluatedInCycleRun = true;
                         }
                     }
@@ -86,6 +101,18 @@ public class DependenciesBasedCheEnvStartStrategy implements CheEnvStartStrategy
         }
 
         return weights;
+    }
+
+    private String getServiceFromMachineLink(String link) {
+        String service = link;
+        if (link != null) {
+            String[] split = service.split(":");
+            if (split.length != 1 && split.length != 2) {
+                throw new IllegalArgumentException(format("Service link %s is invalid", link));
+            }
+            service = split[0];
+        }
+        return service;
     }
 
     private List<MachineConfig> sortByWeight(List<MachineConfig> configs, Map<String, Integer> weights) {

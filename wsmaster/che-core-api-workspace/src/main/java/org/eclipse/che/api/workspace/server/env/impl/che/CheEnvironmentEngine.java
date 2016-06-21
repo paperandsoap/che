@@ -58,6 +58,7 @@ import static org.slf4j.LoggerFactory.getLogger;
 /**
  * author Alexander Garagatyi
  */
+// todo use containerName field to provide machine name, but do not allow to set it for user in hosted version
 public class CheEnvironmentEngine implements EnvironmentEngine {
     public final static String ENVIRONMENT_TYPE = "opencompose";
 

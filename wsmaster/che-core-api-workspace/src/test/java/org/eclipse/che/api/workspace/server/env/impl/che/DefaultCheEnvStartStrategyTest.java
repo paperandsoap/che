@@ -31,12 +31,12 @@ import static org.testng.Assert.assertEquals;
 /**
  * author Alexander Garagatyi
  */
-public class DependenciesBasedCheEnvStartStrategyTest {
-    private DependenciesBasedCheEnvStartStrategy strategy;
+public class DefaultCheEnvStartStrategyTest {
+    private DefaultCheEnvStartStrategy strategy;
 
     @BeforeMethod
     public void setUp() throws Exception {
-        strategy = new DependenciesBasedCheEnvStartStrategy();
+        strategy = new DefaultCheEnvStartStrategy();
     }
 
     @Test

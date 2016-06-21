@@ -23,8 +23,6 @@ public class OutputMessageUnmarshaller implements Unmarshallable<String> {
 
     @Override
     public void unmarshal(Message message) {
-//        final JSONString jsonString = JSONParser.parseStrict(message.getBody()).isString();
-//        payload = jsonString.stringValue();
         payload = message.getBody();
 
         if (payload.startsWith("[STDOUT]") || payload.startsWith("[STDERR]")) {

@@ -10,7 +10,7 @@
  *******************************************************************************/
 package org.eclipse.che.api.workspace.server.model.impl;
 
-import org.eclipse.che.api.core.model.machine.MachineConfig2;
+import org.eclipse.che.api.core.model.machine.MachineExtension;
 import org.eclipse.che.api.core.model.workspace.Environment;
 import org.eclipse.che.api.core.model.workspace.EnvironmentRecipe;
 
@@ -26,17 +26,17 @@ import java.util.stream.Collectors;
  */
 public class EnvironmentImpl implements Environment {
 
-    private EnvironmentRecipeImpl           recipe;
-    private Map<String, MachineConfig2Impl> machines;
+    private EnvironmentRecipeImpl             recipe;
+    private Map<String, MachineExtensionImpl> machines;
 
-    public EnvironmentImpl(EnvironmentRecipe recipe, Map<String, ? extends MachineConfig2> machines) {
+    public EnvironmentImpl(EnvironmentRecipe recipe, Map<String, ? extends MachineExtension> machines) {
         if (recipe != null) {
             this.recipe = new EnvironmentRecipeImpl(recipe);
         }
         this.machines = machines.entrySet()
                                 .stream()
                                 .collect(Collectors.toMap(Map.Entry::getKey,
-                                                          stringEntry ->  new MachineConfig2Impl(stringEntry.getValue())));
+                                                          stringEntry ->  new MachineExtensionImpl(stringEntry.getValue())));
     }
 
     public EnvironmentImpl(Environment environment) {
@@ -55,14 +55,14 @@ public class EnvironmentImpl implements Environment {
     }
 
     @Override
-    public Map<String, MachineConfig2Impl> getMachines() {
+    public Map<String, MachineExtensionImpl> getMachines() {
         if (machines == null) {
             machines = new HashMap<>();
         }
         return machines;
     }
 
-    public void setMachines(Map<String, MachineConfig2Impl> machines) {
+    public void setMachines(Map<String, MachineExtensionImpl> machines) {
         this.machines = machines;
     }
 

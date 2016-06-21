@@ -23,7 +23,7 @@ import org.eclipse.che.api.machine.shared.dto.SnapshotDto;
 import org.eclipse.che.api.workspace.server.model.impl.stack.StackImpl;
 import org.eclipse.che.api.workspace.shared.dto.EnvironmentDto;
 import org.eclipse.che.api.workspace.shared.dto.EnvironmentRecipeDto;
-import org.eclipse.che.api.workspace.shared.dto.MachineConfig2Dto;
+import org.eclipse.che.api.workspace.shared.dto.MachineExtensionDto;
 import org.eclipse.che.api.workspace.shared.dto.ProjectConfigDto;
 import org.eclipse.che.api.workspace.shared.dto.SourceStorageDto;
 import org.eclipse.che.api.workspace.shared.dto.WorkspaceConfigDto;
@@ -153,7 +153,7 @@ public final class DtoConverter {
                                                             .entrySet()
                                                             .stream()
                                                             .collect(toMap(Map.Entry::getKey,
-                                                                           entry -> newDto(MachineConfig2Dto.class)
+                                                                           entry -> newDto(MachineExtensionDto.class)
                                                                                    .withAgents(entry.getValue().getAgents())
                                                                                    .withServers(entry.getValue()
                                                                                                      .getServers()

@@ -10,7 +10,7 @@
  *******************************************************************************/
 package org.eclipse.che.api.workspace.shared.dto;
 
-import org.eclipse.che.api.core.model.machine.MachineConfig2;
+import org.eclipse.che.api.core.model.machine.MachineExtension;
 import org.eclipse.che.api.core.rest.shared.dto.Hyperlinks;
 import org.eclipse.che.api.core.rest.shared.dto.Link;
 import org.eclipse.che.api.machine.shared.dto.ServerConfDto;
@@ -23,21 +23,21 @@ import java.util.Map;
  * @author Alexander Garagatyi
  */
 @DTO
-public interface MachineConfig2Dto extends MachineConfig2, Hyperlinks {
+public interface MachineExtensionDto extends MachineExtension, Hyperlinks {
     @Override
     List<String> getAgents();
 
     void setAgents(List<String> agents);
 
-    MachineConfig2Dto withAgents(List<String> agents);
+    MachineExtensionDto withAgents(List<String> agents);
 
     @Override
     Map<String, ServerConfDto> getServers();
 
     void setServers(Map<String, ServerConfDto>  servers);
 
-    MachineConfig2Dto withServers(Map<String, ServerConfDto>  servers);
+    MachineExtensionDto withServers(Map<String, ServerConfDto>  servers);
 
     @Override
-    MachineConfig2Dto withLinks(List<Link> links);
+    MachineExtensionDto withLinks(List<Link> links);
 }
