@@ -185,7 +185,7 @@ class JGitConnection implements GitConnection {
     private static final String KEY_RESULT = "Result";
     private static final String KEY_REMOTENAME = "RemoteName";
     private static final String KEY_LOCALNAME = "LocalName";
-    private static final String INFO_PUSH_ATTEMPT_IGNORED_UP_TO_DATE    = "Could not push because the repository is up-to-date.";
+    private static final String INFO_PUSH_ATTEMPT_IGNORED_UP_TO_DATE    = "Everything up-to-date";
     private static final String ERROR_PUSH_ATTEMPT_FAILED_WITHMSG       = "Could not push refspec {0} to the branch {1}. Try to merge " +
                                                                           "the remote changes using pull, and then push again. \n Error " +
                                                                           "Status: {2}, Error message {3}. \n";
@@ -1005,7 +1005,7 @@ class JGitConnection implements GitConnection {
             @SuppressWarnings("unchecked")
             Iterable<PushResult> pushResults = (Iterable<PushResult>)executeRemoteCommand(remoteUri, pushCommand);
             PushResult pushResult = pushResults.iterator().next();
-            return addCommandOutputUpdates(pushResponseDto, request, pushResult);
+            return addCommandOutputUpdates(pushResponseDto, request, pushResult, remoteUri);
         } catch (GitAPIException exception) {
             if ("origin: not found.".equals(exception.getMessage())) {
                 throw new GitException(ERROR_NO_REMOTE_REPOSITORY, exception);
@@ -1016,8 +1016,8 @@ class JGitConnection implements GitConnection {
     }
 
     private PushResponse addCommandOutputUpdates(PushResponse pushResponseDto, final PushRequest request,
-                                                 final PushResult result) throws GitException {
-        String commandOutput = result.getMessages();
+                                                 final PushResult result, String remoteUri) throws GitException {
+        String commandOutput = result.getMessages().isEmpty() ? "Successfully pushed to " + remoteUri : result.getMessages();
         final Collection<RemoteRefUpdate> refUpdates = result.getRemoteUpdates();
         final List<Map<String, String>> updates = new ArrayList<>();
         final String currentBranch = getCurrentBranch();
