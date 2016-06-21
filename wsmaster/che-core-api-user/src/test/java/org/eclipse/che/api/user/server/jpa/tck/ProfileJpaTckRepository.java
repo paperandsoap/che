@@ -11,20 +11,45 @@
 package org.eclipse.che.api.user.server.jpa.tck;
 
 import org.eclipse.che.api.user.server.model.impl.ProfileImpl;
+import org.eclipse.che.api.user.server.model.impl.UserImpl;
 import org.eclipse.che.commons.test.tck.TckRepository;
 import org.eclipse.che.commons.test.tck.TckRepositoryException;
 
+import javax.inject.Inject;
+import javax.persistence.EntityManager;
+import javax.persistence.EntityManagerFactory;
 import java.util.Collection;
+
+import static java.util.Collections.emptyList;
 
 public class ProfileJpaTckRepository implements TckRepository<ProfileImpl> {
 
+    @Inject
+    private EntityManagerFactory factory;
+
     @Override
     public void createAll(Collection<? extends ProfileImpl> entities) throws TckRepositoryException {
-
+        final EntityManager manager = factory.createEntityManager();
+        manager.getTransaction().begin();
+        for (ProfileImpl profile : entities) {
+            manager.persist(new UserImpl(profile.getUserId(),
+                                         profile.getEmail(),
+                                         profile.getEmail(),
+                                         "password",
+                                         emptyList()));
+            manager.persist(profile);
+        }
+        manager.getTransaction().commit();
+        manager.clear();
+        manager.close();
     }
 
     @Override
     public void removeAll() throws TckRepositoryException {
-
+        final EntityManager manager = factory.createEntityManager();
+        manager.getTransaction().begin();
+        manager.createQuery("DELETE FROM Profile");
+        manager.getTransaction().commit();
+        manager.close();
     }
 }

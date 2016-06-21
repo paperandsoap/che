@@ -16,6 +16,7 @@
     <persistence-unit name="main" transaction-type="RESOURCE_LOCAL">
         <provider>org.eclipse.persistence.jpa.PersistenceProvider</provider>
         <class>org.eclipse.che.api.user.server.model.impl.UserImpl</class>
+        <class>org.eclipse.che.api.user.server.model.impl.ProfileImpl</class>
         <exclude-unlisted-classes>true</exclude-unlisted-classes>
         <properties>
             <!-- EclipseLink should create the database schema automatically -->

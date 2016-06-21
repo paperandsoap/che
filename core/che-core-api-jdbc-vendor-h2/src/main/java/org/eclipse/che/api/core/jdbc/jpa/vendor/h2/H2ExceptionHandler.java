@@ -12,9 +12,9 @@ package org.eclipse.che.api.core.jdbc.jpa.vendor.h2;
 
 import org.eclipse.che.api.core.jdbc.DBErrorCode;
 import org.eclipse.che.api.core.jdbc.DBErrorCodesMapper;
+import org.eclipse.che.api.core.jdbc.jpa.DuplicateKeyException;
+import org.eclipse.persistence.exceptions.DatabaseException;
 import org.eclipse.persistence.exceptions.ExceptionHandler;
-
-import javax.persistence.RollbackException;
 
 import static org.eclipse.che.api.core.jdbc.DBUtil.extractSqlErrorCode;
 
@@ -28,11 +28,10 @@ public class H2ExceptionHandler implements ExceptionHandler {
 
     @Override
     public Object handleException(RuntimeException exception) {
-        if (exception instanceof RollbackException) {
+        if (exception instanceof DatabaseException) {
             final DBErrorCode code = mapper.map(extractSqlErrorCode(exception));
             if (code == DBErrorCode.DUPLICATE_KEY) {
-                // TODO
-                throw exception;
+                throw new DuplicateKeyException(exception.getMessage(), exception);
             }
         }
         throw exception;

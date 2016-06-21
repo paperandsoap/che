@@ -39,7 +39,7 @@
   -->
   <GlobalNamingResources>
     <!-- Editable user database that can also be used by
-         UserDatabaseRealm to authenticate users
+         UserDatabaseRealm to getByAliasAndPassword users
     -->
     <!--Resource name="UserDatabase" auth="Container"
               type="org.apache.catalina.UserDatabase"

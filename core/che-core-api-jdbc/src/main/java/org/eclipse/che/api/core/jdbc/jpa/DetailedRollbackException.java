@@ -14,12 +14,19 @@ import org.eclipse.che.api.core.jdbc.DBErrorCode;
 
 import javax.persistence.RollbackException;
 
-// TODO implement
-
 /**
  * @author Yevhenii Voevodin
  */
-public class DetailedPersistenceException extends RollbackException {
+public class DetailedRollbackException extends RollbackException {
 
     private DBErrorCode code;
+
+    public DetailedRollbackException(String message, Throwable cause, DBErrorCode code) {
+        super(message, cause);
+        this.code = code;
+    }
+
+    public DBErrorCode getCode() {
+        return code;
+    }
 }

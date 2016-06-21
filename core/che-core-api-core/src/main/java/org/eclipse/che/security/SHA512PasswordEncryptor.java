@@ -52,6 +52,9 @@ public class SHA512PasswordEncryptor implements PasswordEncryptor {
         requireNonNull(passwordHash, "Required non-null password's hash");
         // retrieve salt from the hash
         final int passwordHashLength = ENCRYPTED_PASSWORD_BYTES_LENGTH * 2;
+        if (passwordHash.length() < passwordHashLength + SALT_BYTES_LENGTH * 2) {
+            return false;
+        }
         final HashCode saltHash = HashCode.fromString(passwordHash.substring(passwordHashLength));
         // sha1(password + salt)
         final HashCode hash = Hashing.sha512().hashBytes(Bytes.concat(password.getBytes(PWD_CHARSET), saltHash.asBytes()));

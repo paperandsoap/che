@@ -22,7 +22,7 @@ import static org.testng.Assert.assertTrue;
 public class PasswordEncryptorsTest {
 
     @Test(dataProvider = "encryptorsProvider")
-    public void testEncrypt(PasswordEncryptor encryptor) throws Exception {
+    public void testEncryption(PasswordEncryptor encryptor) throws Exception {
         final String password = "password";
 
         final String hash = encryptor.encrypt(password);

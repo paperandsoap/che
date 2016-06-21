@@ -10,7 +10,9 @@
  *******************************************************************************/
 package org.eclipse.che.api.user.server.jpa;
 
+import org.eclipse.che.api.core.jdbc.jpa.vendor.h2.H2ExceptionHandler;
 import org.eclipse.che.commons.test.tck.AbstractTestListener;
+import org.eclipse.persistence.config.PersistenceUnitProperties;
 import org.eclipse.persistence.config.TargetServer;
 import org.testng.ITestContext;
 
@@ -20,6 +22,7 @@ import java.util.HashMap;
 import java.util.Map;
 
 import static javax.persistence.spi.PersistenceUnitTransactionType.RESOURCE_LOCAL;
+import static org.eclipse.persistence.config.PersistenceUnitProperties.EXCEPTION_HANDLER_CLASS;
 import static org.eclipse.persistence.config.PersistenceUnitProperties.JDBC_DRIVER;
 import static org.eclipse.persistence.config.PersistenceUnitProperties.JDBC_PASSWORD;
 import static org.eclipse.persistence.config.PersistenceUnitProperties.JDBC_URL;
@@ -45,6 +48,7 @@ public class H2DBServerListener extends AbstractTestListener {
         properties.put(JDBC_USER, "");
         properties.put(JDBC_PASSWORD, "");
         properties.put(TARGET_SERVER, TargetServer.None);
+        properties.put(EXCEPTION_HANDLER_CLASS, "org.eclipse.che.api.core.jdbc.jpa.vendor.h2.H2ExceptionHandler");
 
         managerFactory = Persistence.createEntityManagerFactory("main", properties);
         context.setAttribute(ENTITY_MANAGER_FACTORY_ATTR_NAME, managerFactory);

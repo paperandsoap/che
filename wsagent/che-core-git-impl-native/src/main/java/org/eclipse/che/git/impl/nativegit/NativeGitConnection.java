@@ -650,7 +650,7 @@ public class NativeGitConnection implements GitConnection {
     }
 
     /**
-     * Check if error message from git output corresponding authenticate issue.
+     * Check if error message from git output corresponding getByAliasAndPassword issue.
      */
     private boolean isOperationNeedAuth(String errorMessage) {
         return authErrorPattern.matcher(errorMessage).find();

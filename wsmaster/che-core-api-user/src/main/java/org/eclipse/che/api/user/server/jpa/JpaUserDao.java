@@ -13,17 +13,16 @@ package org.eclipse.che.api.user.server.jpa;
 import org.eclipse.che.api.core.ConflictException;
 import org.eclipse.che.api.core.NotFoundException;
 import org.eclipse.che.api.core.ServerException;
-import org.eclipse.che.api.core.UnauthorizedException;
+import org.eclipse.che.api.core.jdbc.jpa.DuplicateKeyException;
 import org.eclipse.che.api.user.server.model.impl.UserImpl;
 import org.eclipse.che.api.user.server.spi.UserDao;
+import org.eclipse.che.security.PasswordEncryptor;
 
 import javax.inject.Inject;
 import javax.inject.Singleton;
 import javax.persistence.EntityManager;
 import javax.persistence.EntityManagerFactory;
-import javax.persistence.EntityTransaction;
 import javax.persistence.NoResultException;
-import javax.persistence.RollbackException;
 
 import static java.lang.String.format;
 import static java.util.Objects.requireNonNull;
@@ -34,18 +33,32 @@ import static java.util.Objects.requireNonNull;
 @Singleton
 public class JpaUserDao implements UserDao {
 
-    private final EntityManagerFactory factory;
-    private final PasswordEncryptor    encryptor;
-
     @Inject
-    public JpaUserDao(EntityManagerFactory factory) {
-        this.factory = factory;
-    }
+    private EntityManagerFactory factory;
+    @Inject
+    private PasswordEncryptor    encryptor;
 
     @Override
-    public String authenticate(String emailOrAliasOrName, String password) throws UnauthorizedException, ServerException {
-
-        return null;
+    public UserImpl getByAliasAndPassword(String emailOrAliasOrName, String password) throws NotFoundException, ServerException {
+        requireNonNull(emailOrAliasOrName, "Required non-null alias");
+        requireNonNull(password, "Required non-null password");
+        final EntityManager manager = factory.createEntityManager();
+        try {
+            final UserImpl user = manager.createQuery("SELECT distinct(u) " +
+                                                      "FROM User u " +
+                                                      "WHERE u.name = :alias OR u.email = :alias OR :alias MEMBER OF u.aliases",
+                                                      UserImpl.class)
+                                         .setParameter("alias", emailOrAliasOrName)
+                                         .getSingleResult();
+            if (!encryptor.test(password, user.getPassword())) {
+                throw new NotFoundException(format("User with alias '%s' and given password doesn't exist", emailOrAliasOrName));
+            }
+            return user;
+        } catch (NoResultException x) {
+            throw new NotFoundException(format("User with alias '%s' and given password doesn't exist", emailOrAliasOrName));
+        } catch (RuntimeException x) {
+            throw new ServerException(x.getLocalizedMessage(), x);
+        }
     }
 
     @Override
@@ -56,12 +69,15 @@ public class JpaUserDao implements UserDao {
             manager.getTransaction().begin();
             manager.persist(user);
             manager.getTransaction().commit();
-        } catch (RollbackException x) {
-            // TODO make it more concrete
+        } catch (DuplicateKeyException x) {
+            // TODO make more concrete
             throw new ConflictException("User with such id/name/email/alias already exists");
         } catch (RuntimeException x) {
             throw new ServerException(x.getLocalizedMessage(), x);
         } finally {
+            if (manager.getTransaction().isActive()) {
+                manager.getTransaction().rollback();
+            }
             manager.close();
         }
     }
@@ -70,21 +86,22 @@ public class JpaUserDao implements UserDao {
     public void update(UserImpl update) throws NotFoundException, ServerException, ConflictException {
         requireNonNull(update, "Required non-null update");
         final EntityManager manager = factory.createEntityManager();
-        final EntityTransaction tx = manager.getTransaction();
         try {
-            tx.begin();
+            manager.getTransaction().begin();
             final UserImpl user = manager.find(UserImpl.class, update.getId());
             if (user == null) {
                 throw new NotFoundException(format("Couldn't update user with id '%s' because it doesn't exist", update.getId()));
             }
-            manager.remove(user);
-            manager.persist(update);
-            tx.commit();
+            manager.merge(update);
+            manager.getTransaction().commit();
+        } catch (DuplicateKeyException x) {
+            // TODO make more concrete
+            throw new ConflictException("User with such name/email/alias already exists");
         } catch (RuntimeException x) {
             throw new ServerException(x.getLocalizedMessage(), x);
         } finally {
-            if (tx.isActive()) {
-                tx.rollback();
+            if (manager.getTransaction().isActive()) {
+                manager.getTransaction().rollback();
             }
             manager.close();
         }
@@ -104,6 +121,9 @@ public class JpaUserDao implements UserDao {
         } catch (RuntimeException x) {
             throw new ServerException(x.getLocalizedMessage(), x);
         } finally {
+            if (manager.getTransaction().isActive()) {
+                manager.getTransaction().rollback();
+            }
             manager.close();
         }
     }
@@ -113,7 +133,7 @@ public class JpaUserDao implements UserDao {
         requireNonNull(alias, "Required non-null alias");
         final EntityManager manager = factory.createEntityManager();
         try {
-            return manager.createQuery("SELECT u FROM User u WHERE :alias in (u.aliases)", UserImpl.class)
+            return manager.createQuery("SELECT u FROM User u WHERE :alias MEMBER OF u.aliases", UserImpl.class)
                           .setParameter("alias", alias)
                           .getSingleResult();
         } catch (NoResultException x) {

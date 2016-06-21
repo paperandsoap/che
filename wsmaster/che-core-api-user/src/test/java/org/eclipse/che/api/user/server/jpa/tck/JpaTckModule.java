@@ -11,18 +11,19 @@
 package org.eclipse.che.api.user.server.jpa.tck;
 
 import com.google.common.reflect.Reflection;
+import com.google.inject.Singleton;
 import com.google.inject.TypeLiteral;
 
 import org.eclipse.che.api.user.server.jpa.JpaProfileDao;
 import org.eclipse.che.api.user.server.jpa.JpaUserDao;
-import org.eclipse.che.api.user.server.jpa.tck.ProfileJpaTckRepository;
-import org.eclipse.che.api.user.server.jpa.tck.UserJpaTckRepository;
 import org.eclipse.che.api.user.server.model.impl.ProfileImpl;
 import org.eclipse.che.api.user.server.model.impl.UserImpl;
 import org.eclipse.che.api.user.server.spi.ProfileDao;
 import org.eclipse.che.api.user.server.spi.UserDao;
 import org.eclipse.che.commons.test.tck.TckModule;
 import org.eclipse.che.commons.test.tck.TckRepository;
+import org.eclipse.che.security.PasswordEncryptor;
+import org.eclipse.che.security.SHA512PasswordEncryptor;
 
 import javax.persistence.EntityManagerFactory;
 
@@ -49,6 +50,7 @@ public class JpaTckModule extends TckModule {
 
         bind(UserDao.class).to(JpaUserDao.class);
         bind(ProfileDao.class).to(JpaProfileDao.class);
+        // SHA-512 ecnryptor is faster than PBKDF2 so it is better for testing
+        bind(PasswordEncryptor.class).to(SHA512PasswordEncryptor.class).in(Singleton.class);
     }
 }
-

@@ -13,6 +13,7 @@ package org.eclipse.che.api.user.server.jpa.tck;
 import org.eclipse.che.api.user.server.model.impl.UserImpl;
 import org.eclipse.che.commons.test.tck.TckRepository;
 import org.eclipse.che.commons.test.tck.TckRepositoryException;
+import org.eclipse.che.security.PasswordEncryptor;
 
 import javax.inject.Inject;
 import javax.persistence.EntityManager;
@@ -24,11 +25,20 @@ public class UserJpaTckRepository implements TckRepository<UserImpl> {
     @Inject
     private EntityManagerFactory factory;
 
+    @Inject
+    private PasswordEncryptor encryptor;
+
     @Override
     public void createAll(Collection<? extends UserImpl> entities) throws TckRepositoryException {
         final EntityManager manager = factory.createEntityManager();
         manager.getTransaction().begin();
-        entities.forEach(manager::persist);
+        entities.stream()
+                .map(user -> new UserImpl(user.getId(),
+                                          user.getEmail(),
+                                          user.getName(),
+                                          encryptor.encrypt(user.getPassword()),
+                                          user.getAliases()))
+                .forEach(manager::persist);
         manager.getTransaction().commit();
         manager.close();
     }

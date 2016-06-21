@@ -91,7 +91,7 @@ public class LocalUserDaoImpl implements UserDao {
     }
 
     @Override
-    public String authenticate(String aliasOrNameOrEmail, String password) throws UnauthorizedException, ServerException {
+    public UserImpl getByAliasAndPassword(String aliasOrNameOrEmail, String password) throws ServerException, NotFoundException {
         requireNonNull(aliasOrNameOrEmail);
         requireNonNull(password);
         rwLock.readLock().lock();
@@ -103,9 +103,9 @@ public class LocalUserDaoImpl implements UserDao {
                                                                     || user.getAliases().contains(aliasOrNameOrEmail))
                                                     .findAny();
             if (!userOpt.isPresent() || !userOpt.get().getPassword().equals(password)) {
-                throw new UnauthorizedException(format("Authentication failed for user '%s'", aliasOrNameOrEmail));
+                throw new NotFoundException(format("User '%s' doesn't exist", aliasOrNameOrEmail));
             }
-            return userOpt.get().getId();
+            return userOpt.get();
         } finally {
             rwLock.readLock().unlock();
         }

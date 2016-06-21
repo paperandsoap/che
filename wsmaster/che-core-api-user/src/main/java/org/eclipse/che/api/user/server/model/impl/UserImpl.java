@@ -48,7 +48,7 @@ public class UserImpl implements User {
     @Basic
     private String password;
 
-    @ElementCollection(targetClass = String.class)
+    @ElementCollection
     @Column(nullable = false, unique = true)
     @CollectionTable(name = "USER_ALIASES")
     @JoinColumn(name = "USER_ID")
