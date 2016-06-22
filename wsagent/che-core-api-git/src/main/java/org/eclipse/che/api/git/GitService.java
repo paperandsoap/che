@@ -99,8 +99,8 @@ public class GitService {
     @QueryParam("projectPath")
     private String projectPath;
 
-    @Path("add")
     @POST
+    @Path("add")
     @Consumes(MediaType.APPLICATION_JSON)
     public void add(AddRequest request) throws ApiException {
         try (GitConnection gitConnection = getGitConnection()) {
@@ -111,8 +111,8 @@ public class GitService {
         }
     }
 
-    @Path("checkout")
     @POST
+    @Path("checkout")
     @Consumes(MediaType.APPLICATION_JSON)
     public void checkout(CheckoutRequest request) throws ApiException {
         try (GitConnection gitConnection = getGitConnection()) {
@@ -126,8 +126,8 @@ public class GitService {
         }
     }
 
-    @Path("branch-create")
     @POST
+    @Path("branch")
     @Consumes(MediaType.APPLICATION_JSON)
     @Produces(MediaType.APPLICATION_JSON)
     public Branch branchCreate(BranchCreateRequest request) throws ApiException {
@@ -136,16 +136,16 @@ public class GitService {
         }
     }
 
-    @Path("branch-delete")
     @DELETE
+    @Path("branch")
     public void branchDelete(@QueryParam("name") String name, @QueryParam("force") boolean force) throws ApiException {
         try (GitConnection gitConnection = getGitConnection()) {
             gitConnection.branchDelete(name, force);
         }
     }
 
-    @Path("branch-rename")
     @POST
+    @Path("branch")
     public void branchRename(@QueryParam("oldName") String oldName,
                              @QueryParam("newName") String newName) throws ApiException {
         try (GitConnection gitConnection = getGitConnection()) {
@@ -153,8 +153,8 @@ public class GitService {
         }
     }
 
-    @Path("branch-list")
     @GET
+    @Path("branch")
     @Produces({MediaType.APPLICATION_JSON})
     public GenericEntity<List<Branch>> branchList(@QueryParam("listMode") String listMode) throws ApiException {
         try (GitConnection gitConnection = getGitConnection()) {
@@ -163,8 +163,8 @@ public class GitService {
         }
     }
 
-    @Path("clone")
     @POST
+    @Path("clone")
     @Consumes(MediaType.APPLICATION_JSON)
     @Produces(MediaType.APPLICATION_JSON)
     public RepoInfo clone(final CloneRequest request) throws URISyntaxException, ApiException {
@@ -190,8 +190,8 @@ public class GitService {
         }
     }
 
-    @Path("commit")
     @POST
+    @Path("commit")
     @Consumes(MediaType.APPLICATION_JSON)
     @Produces({MediaType.APPLICATION_JSON, MediaType.TEXT_PLAIN})
     public Revision commit(CommitRequest request) throws ApiException {
@@ -204,8 +204,8 @@ public class GitService {
         }
     }
 
-    @Path("diff")
     @GET
+    @Path("diff")
     @Produces(MediaType.TEXT_PLAIN)
     public InfoPage diff(@QueryParam("fileFilter") List<String> fileFilter,
                          @QueryParam("diffType") String diffType,
@@ -227,8 +227,8 @@ public class GitService {
         }
     }
 
-    @Path("show")
     @GET
+    @Path("show")
     @Produces({MediaType.APPLICATION_JSON, MediaType.TEXT_PLAIN})
     public ShowFileContentResponse showFileContent(@QueryParam("file") String file, @QueryParam("version") String version)
             throws ApiException {
@@ -237,8 +237,8 @@ public class GitService {
         }
     }
 
-    @Path("fetch")
     @POST
+    @Path("fetch")
     @Consumes(MediaType.APPLICATION_JSON)
     public void fetch(FetchRequest request) throws ApiException {
         try (GitConnection gitConnection = getGitConnection()) {
@@ -250,8 +250,8 @@ public class GitService {
         }
     }
 
-    @Path("init")
     @POST
+    @Path("init")
     public void init(@QueryParam("bare") boolean bare) throws ApiException {
         try (GitConnection gitConnection = getGitConnection()) {
             gitConnection.init(bare);
@@ -260,7 +260,7 @@ public class GitService {
     }
 
     @DELETE
-    @Path("delete-repository")
+    @Path("repository")
     public void deleteRepository(@Context UriInfo uriInfo) throws ApiException {
         final RegisteredProject project = projectRegistry.getProject(projectPath);
         final FolderEntry gitFolder = project.getBaseFolder().getChildFolder(".git");
@@ -268,8 +268,8 @@ public class GitService {
         projectRegistry.removeProjectType(projectPath, GitProjectType.TYPE_ID);
     }
 
-    @Path("log")
     @GET
+    @Path("log")
     @Produces({MediaType.APPLICATION_JSON, MediaType.TEXT_PLAIN})
     public LogPage log(@QueryParam("fileFilter") List<String> fileFilter,
                        @QueryParam("since") String revisionRangeSince,
@@ -283,8 +283,8 @@ public class GitService {
         }
     }
 
-    @Path("merge")
     @POST
+    @Path("merge")
     @Consumes(MediaType.APPLICATION_JSON)
     @Produces({MediaType.APPLICATION_JSON, MediaType.TEXT_PLAIN})
     public MergeResult merge(MergeRequest request) throws ApiException {
@@ -293,8 +293,8 @@ public class GitService {
         }
     }
 
-    @Path("rebase")
     @POST
+    @Path("rebase")
     @Consumes(MediaType.APPLICATION_JSON)
     @Produces(MediaType.APPLICATION_JSON)
     public RebaseResponse rebase(RebaseRequest request) throws ApiException {
@@ -303,8 +303,8 @@ public class GitService {
         }
     }
 
-    @Path("mv")
     @POST
+    @Path("mv")
     @Consumes(MediaType.APPLICATION_JSON)
     public void mv(MoveRequest request) throws ApiException {
         try (GitConnection gitConnection = getGitConnection()) {
@@ -312,8 +312,20 @@ public class GitService {
         }
     }
 
-    @Path("pull")
     @POST
+    @Path("rm")
+    @Consumes(MediaType.APPLICATION_JSON)
+    public void rm(RmRequest request) throws ApiException {
+        try (GitConnection gitConnection = getGitConnection()) {
+            RmParams params = RmParams.create(request.getItems())
+                                      .withRecursively(request.isRecursively())
+                                      .withCached(request.isCached());
+            gitConnection.rm(params);
+        }
+    }
+
+    @POST
+    @Path("pull")
     @Consumes(MediaType.APPLICATION_JSON)
     public PullResponse pull(PullRequest request) throws ApiException {
         try (GitConnection gitConnection = getGitConnection()) {
@@ -324,8 +336,8 @@ public class GitService {
         }
     }
 
-    @Path("push")
     @POST
+    @Path("push")
     @Consumes(MediaType.APPLICATION_JSON)
     public PushResponse push(PushRequest request) throws ApiException {
         try (GitConnection gitConnection = getGitConnection()) {
@@ -337,8 +349,8 @@ public class GitService {
         }
     }
 
-    @Path("remote-add")
-    @POST
+    @PUT
+    @Path("remote")
     @Consumes(MediaType.APPLICATION_JSON)
     public void remoteAdd(RemoteAddRequest request) throws ApiException {
         try (GitConnection gitConnection = getGitConnection()) {
@@ -347,16 +359,16 @@ public class GitService {
         }
     }
 
-    @Path("remote-delete/{name}")
     @DELETE
+    @Path("remote/{name}")
     public void remoteDelete(@PathParam("name") String name) throws ApiException {
         try (GitConnection gitConnection = getGitConnection()) {
             gitConnection.remoteDelete(name);
         }
     }
 
-    @Path("remote-list")
     @GET
+    @Path("remote")
     @Produces({MediaType.APPLICATION_JSON, MediaType.TEXT_PLAIN})
     public GenericEntity<List<Remote>> remoteList(@QueryParam("remoteName") String remoteName, @QueryParam("verbose") boolean verbose)
             throws ApiException {
@@ -366,8 +378,8 @@ public class GitService {
         }
     }
 
-    @Path("remote-update")
     @POST
+    @Path("remote")
     @Consumes(MediaType.APPLICATION_JSON)
     public void remoteUpdate(RemoteUpdateRequest request) throws ApiException {
         try (GitConnection gitConnection = getGitConnection()) {
@@ -382,8 +394,8 @@ public class GitService {
         }
     }
 
-    @Path("reset")
     @POST
+    @Path("reset")
     @Consumes(MediaType.APPLICATION_JSON)
     public void reset(ResetRequest request) throws ApiException {
         try (GitConnection gitConnection = getGitConnection()) {
@@ -392,20 +404,8 @@ public class GitService {
         }
     }
 
-    @Path("rm")
-    @DELETE
-    @Consumes(MediaType.APPLICATION_JSON)
-    public void rm(RmRequest request) throws ApiException {
-        try (GitConnection gitConnection = getGitConnection()) {
-            RmParams params = RmParams.create(request.getItems())
-                                      .withRecursively(request.isRecursively())
-                                      .withCached(request.isCached());
-            gitConnection.rm(params);
-        }
-    }
-
-    @Path("status")
     @GET
+    @Path("status")
     @Produces({MediaType.APPLICATION_JSON, MediaType.TEXT_PLAIN})
     public Status status(@QueryParam("format") StatusFormat format) throws ApiException {
         try (GitConnection gitConnection = getGitConnection()) {
@@ -413,8 +413,8 @@ public class GitService {
         }
     }
 
-    @Path("tag-create")
     @POST
+    @Path("tag")
     @Consumes(MediaType.APPLICATION_JSON)
     @Produces(MediaType.APPLICATION_JSON)
     public Tag tagCreate(TagCreateRequest request) throws ApiException {
@@ -430,8 +430,8 @@ public class GitService {
         }
     }
 
-    @Path("tag-delete/{name}")
     @DELETE
+    @Path("tag/{name}")
     @Consumes(MediaType.APPLICATION_JSON)
     public void tagDelete(@PathParam("name") String name) throws ApiException {
         try (GitConnection gitConnection = getGitConnection()) {
@@ -440,8 +440,8 @@ public class GitService {
     }
 
 
-    @Path("tag-list")
     @GET
+    @Path("tag")
     @Produces({MediaType.APPLICATION_JSON, MediaType.TEXT_PLAIN})
     public GenericEntity<List<Tag>> tagList(@QueryParam("pattern") String pattern) throws ApiException {
         try (GitConnection gitConnection = getGitConnection()) {
@@ -450,8 +450,8 @@ public class GitService {
         }
     }
 
-    @Path("config")
     @GET
+    @Path("config")
     @Produces(MediaType.APPLICATION_JSON)
     public Map<String, String> getConfig(@QueryParam("requestedConfig") List<String> requestedConfig)
             throws ApiException {
@@ -477,8 +477,8 @@ public class GitService {
         return result;
     }
 
-    @Path("config")
     @PUT
+    @Path("config")
     @Consumes(MediaType.APPLICATION_JSON)
     public void setConfig(ConfigRequest request) throws ApiException {
         try (GitConnection gitConnection = getGitConnection()) {
@@ -495,8 +495,8 @@ public class GitService {
         }
     }
 
-    @Path("config")
     @DELETE
+    @Path("config")
     public void unsetConfig(@QueryParam("requestedConfig") List<String> requestedConfig) throws ApiException {
         try (GitConnection gitConnection = getGitConnection()) {
             Config config = gitConnection.getConfig();
