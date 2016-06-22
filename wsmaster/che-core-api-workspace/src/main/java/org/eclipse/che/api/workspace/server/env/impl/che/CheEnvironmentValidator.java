@@ -146,7 +146,7 @@ public class CheEnvironmentValidator implements EnvironmentValidator {
     private EnvironmentRecipeContentImpl parseEnvironmentRecipeContent(String recipeContent, String contentType) {
         if (contentType == null) {
             throw new IllegalArgumentException(
-                    "Environment recipe content type required. Supported values are: application/json, application/x-yaml, text/yaml");
+                    "Environment recipe content type required. Supported values are: application/json, application/x-yaml, text/yaml, text/x-yaml");
         }
         EnvironmentRecipeContentImpl envRecipeContent;
         switch (contentType) {
@@ -159,6 +159,7 @@ public class CheEnvironmentValidator implements EnvironmentValidator {
                 break;
             case "application/x-yaml" :
             case "text/yaml":
+            case "text/x-yaml":
 //                Yaml yaml = new Yaml();
 //                envRecipeContent = yaml.loadAs(recipeContent, EnvironmentRecipeContentImpl.class);
                 try {
