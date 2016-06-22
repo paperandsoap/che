@@ -75,6 +75,7 @@ export class CreateProjectCtrl {
 
     this.messageBus = null;
     this.recipeUrl = null;
+    this.recipeFormat = null;
 
     //search the selected tab
     let routeParams = $routeParams.tabName;
@@ -812,11 +813,12 @@ export class CreateProjectCtrl {
         this.createWorkspace(this.computerSourceFromStack(this.stack));
       } else {
         source.type = 'environment';
+        source.format = this.recipeFormat;
         if (this.recipeUrl && this.recipeUrl.length > 0) {
           source.location = this.recipeUrl;
           this.createWorkspace(source);
         } else {
-          source.content = this.recipeScript
+          source.content = this.recipeScript;
           this.createWorkspace(source);
         }
       }

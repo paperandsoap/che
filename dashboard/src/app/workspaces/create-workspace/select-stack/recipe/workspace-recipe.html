@@ -1,5 +1,11 @@
 <div layout="column" flex class="recipe-widget">
   <div class="stack-label-info">Bring your own stack.</div>
+  <che-label-container che-label-name="Choose recipe format" class="format-container">
+    <che-toggle ng-init="format='YAML'" ng-model="format">
+      <che-toggle-button che-title="YAML" ng-click="workspaceRecipeCtrl.onFormatChanged('text/x-yaml')"></che-toggle-button>
+      <che-toggle-button che-title="JSON" ng-click="workspaceRecipeCtrl.onFormatChanged('application/json')"></che-toggle-button>
+    </che-toggle>
+  </che-label-container>
   <ng-form name="workspaceInformationForm">
     <md-radio-group ng-model="workspaceRecipeCtrl.selectSourceOption" ng-change="workspaceRecipeCtrl.setDefaultData()">
       <div layout="column" flex="100">
@@ -38,4 +44,5 @@
       </div>
     </md-radio-group>
   </ng-form>
+
 </div>

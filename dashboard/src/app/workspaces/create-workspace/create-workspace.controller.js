@@ -53,6 +53,7 @@ export class CreateWorkspaceCtrl {
     this.stack = null;
     this.recipeUrl = null;
     this.recipeScript = null;
+    this.recipeFormat = null;
     this.importWorkspace = '';
     this.defaultWorkspaceName = null;
 
@@ -123,6 +124,7 @@ export class CreateWorkspaceCtrl {
     if (this.isCustomStack) {
       this.stack = null;
       source.type = 'environment';
+      source.format = this.recipeFormat;
       if (this.recipeUrl && this.recipeUrl.length > 0) {
         source.location = this.recipeUrl;
         this.submitWorkspace(source);

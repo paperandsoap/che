@@ -250,7 +250,7 @@ export class CheWorkspace {
     if (source && source.type && source.type === 'environment') {
       defaultEnvironment.recipe = {
         'type': 'opencompose',
-        'contentType': 'application/json'
+        'contentType': source.format
       }
 
       defaultEnvironment.recipe.content = source.content || null;
