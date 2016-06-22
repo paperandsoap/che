@@ -991,11 +991,9 @@ class JGitConnection implements GitConnection {
         }
         List<String> refSpec = request.getRefSpec();
         if (!refSpec.isEmpty()) {
-            List<RefSpec> refSpecInst = new ArrayList<>(refSpec.size());
-            refSpecInst.addAll(refSpec.stream()
-                                      .map(RefSpec::new)
-                                      .collect(Collectors.toList()));
-            pushCommand.setRefSpecs(refSpecInst);
+            pushCommand.setRefSpecs(refSpec.stream()
+                                           .map(RefSpec::new)
+                                           .collect(Collectors.toList()));
         }
         pushCommand.setForce(request.isForce());
         int timeout = request.getTimeout();
