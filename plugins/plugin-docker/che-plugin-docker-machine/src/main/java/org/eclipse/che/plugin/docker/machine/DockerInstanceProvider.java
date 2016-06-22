@@ -105,7 +105,7 @@ public class DockerInstanceProvider implements InstanceProvider {
 
     private final DockerConnector                               docker;
     private final UserSpecificDockerRegistryCredentialsProvider dockerCredentials;
-    private final ExecutorService                               executor;
+    private final ExecutorService                               machineLogsStreamer;
     private final DockerInstanceStopDetector                    dockerInstanceStopDetector;
     private final DockerContainerNameGenerator                  containerNameGenerator;
     private final WorkspaceFolderPathProvider                   workspaceFolderPathProvider;
@@ -208,9 +208,9 @@ public class DockerInstanceProvider implements InstanceProvider {
             this.allMachinesExtraHosts = ObjectArrays.concat(allMachinesExtraHosts.split(","), dockerHost);
         }
 
-        executor = Executors.newCachedThreadPool(new ThreadFactoryBuilder().setNameFormat("MachineLogs-%d")
-                                                                           .setDaemon(false)
-                                                                           .build());
+        machineLogsStreamer = Executors.newCachedThreadPool(new ThreadFactoryBuilder().setNameFormat("MachineLogs-%d")
+                                                                                      .setDaemon(true)
+                                                                                      .build());
     }
 
     /**
@@ -576,13 +576,13 @@ public class DockerInstanceProvider implements InstanceProvider {
 
             docker.startContainer(StartContainerParams.create(containerId));
 
-            executor.execute(() -> {
+            machineLogsStreamer.execute(() -> {
                 try {
                     docker.attachContainer(AttachContainerParams.create(containerId)
                                                                 .withStream(true),
                                            new LogMessagePrinter(outputConsumer));
                 } catch (IOException e) {
-                    LOG.error(e.getLocalizedMessage(), e);
+                    LOG.warn("Failed to stream events from container {} with {} id", containerName, containerId);
                 }
             });
 
@@ -622,16 +622,16 @@ public class DockerInstanceProvider implements InstanceProvider {
 
     @PreDestroy
     private void cleanup() {
-        executor.shutdown();
+        machineLogsStreamer.shutdown();
         try {
-            if (!executor.awaitTermination(10, TimeUnit.SECONDS)) {
-                executor.shutdownNow();
-                if (!executor.awaitTermination(10, TimeUnit.SECONDS)) {
+            if (!machineLogsStreamer.awaitTermination(10, TimeUnit.SECONDS)) {
+                machineLogsStreamer.shutdownNow();
+                if (!machineLogsStreamer.awaitTermination(10, TimeUnit.SECONDS)) {
                     LOG.warn("Unable terminate loggers pool");
                 }
             }
         } catch (InterruptedException e) {
-            executor.shutdownNow();
+            machineLogsStreamer.shutdownNow();
         }
     }
 
