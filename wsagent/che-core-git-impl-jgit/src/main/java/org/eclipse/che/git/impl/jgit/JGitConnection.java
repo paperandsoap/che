@@ -179,42 +179,48 @@ class JGitConnection implements GitConnection {
     private static final String ADD_ALL_OPTION            = "all";
 
     // Push Response Constants
-    private static final String BRANCH_REFSPEC_SEPERATOR             = " -> ";
-    private static final String REFSPEC_COLON                        = ":";
-    private static final String KEY_COMMIT_MESSAGE                   = "Message";
-    private static final String KEY_RESULT                           = "Result";
-    private static final String KEY_REMOTENAME                       = "RemoteName";
-    private static final String KEY_LOCALNAME                        = "LocalName";
-    private static final String INFO_PUSH_ATTEMPT_IGNORED_UP_TO_DATE = "Could not push because the repository is up-to-date.";
-    private static final String ERROR_PUSH_ATTEMPT_FAILED            = "failed to push '%s' to '%s'. Try to merge " +
-                                                                       "remote changes using pull, and then push again.";
+    private static final String BRANCH_REFSPEC_SEPERATOR = " -> ";
+    private static final String REFSPEC_COLON            = ":";
+    private static final String KEY_COMMIT_MESSAGE       = "Message";
+    private static final String KEY_RESULT               = "Result";
+    private static final String KEY_REMOTENAME           = "RemoteName";
+    private static final String KEY_LOCALNAME            = "LocalName";
 
-    private static final String ERROR_UPDATE_REMOTE_NAME_MISSING   = "Update operation failed, remote name is required.";
-    private static final String ERROR_ADD_REMOTE_NAME_MISSING      = "Add operation failed, remote name is required.";
-    private static final String ERROR_REMOTE_NAME_ALREADY_EXISTS   = "Add Remote operation failed, remote name %s already exists.";
-    private static final String ERROR_REMOTE_URL_MISSING           = "Add Remote operation failed, Remote url required.";
+    private static final String ERROR_UPDATE_REMOTE_NAME_MISSING       = "Update operation failed, remote name is required.";
+    private static final String ERROR_UPDATE_REMOTE_REMOVE_INVALID_URL = "remoteUpdate: Ignore this error. Cannot remove invalid URL.";
+
+    private static final String ERROR_ADD_REMOTE_NAME_ALREADY_EXISTS = "Add Remote operation failed, remote name %s already exists.";
+    private static final String ERROR_ADD_REMOTE_NAME_MISSING        = "Add operation failed, remote name is required.";
+    private static final String ERROR_ADD_REMOTE_URL_MISSING         = "Add Remote operation failed, Remote url required.";
+
     private static final String ERROR_PULL_MERGING                 = "Could not pull because the repository state is 'MERGING'.";
     private static final String ERROR_PULL_HEAD_DETACHED           = "Could not pull because HEAD is detached.";
     private static final String ERROR_PULL_REF_MISSING             = "Could not pull because remote ref is missing for branch %s.";
     private static final String ERROR_PULL_AUTO_MERGE_FAILED       = "Automatic merge failed; fix conflicts and then commit the result.";
     private static final String ERROR_PULL_MERGE_CONFLICT_IN_FILES = "Could not pull because a merge conflict is detected in the files:";
     private static final String ERROR_PULL_COMMIT_BEFORE_MERGE     = "Could not pull. Commit your changes before merging.";
-    private static final String ERROR_TAG_DELETE                   = "Could not delete the tag %1$s. An error occurred: %2$s.";
-    private static final String ERROR_INIT_FOLDER_MISSING          = "The working folder %s does not exist.";
-    private static final String ERROR_CHECKOUT_CONFLICT            = "Checkout operation failed, the following files would be " +
-                                                                     "overwritten by merge:";
-    private static final String ERROR_REMOVING_INVALID_URL         = "remoteUpdate: Ignore this error. Cannot remove invalid URL.";
-    private static final String ERROR_BRANCH_NAME_EXISTS           = "A branch named '%s' already exists.";
-    private static final String ERROR_UNSUPPORTED_LIST_MODE        = "Unsupported list mode '%s'. Must be either 'a' or 'r'.";
-    private static final String ERROR_NO_REMOTE_REPOSITORY         = "No remote repository specified.  Please, specify either a URL or a " +
-                                                                     "remote name from which new revisions should be fetched in request.";
-    private static final String ERROR_AUTHENTICATION_REQUIRED      = "Authentication is required but no CredentialsProvider has " +
-                                                                     "been registered";
-    private static final String ERROR_AUTHENTICATION_FAILED        = "fatal: Authentication failed for '%s/'" + lineSeparator();
-    private static final String ERROR_NO_HEAD_EXISTS               = "No HEAD exists and no explicit starting revision was specified";
 
-    private static final String MESSAGE_COMMIT_NOT_POSSIBLE = "Commit is not possible because repository state is '%s'";
-    private static final String MESSAGE_AMEND_NOT_POSSIBLE  = "Amend is not possible because repository state is '%s'";
+    private static final String ERROR_CHECKOUT_BRANCH_NAME_EXISTS = "A branch named '%s' already exists.";
+    private static final String ERROR_CHECKOUT_CONFLICT           = "Checkout operation failed, the following files would be " +
+                                                                    "overwritten by merge:";
+
+    private static final String ERROR_PUSH_CONFLICTS_PRESENT = "failed to push '%s' to '%s'. Try to merge " +
+                                                               "remote changes using pull, and then push again.";
+    private static final String INFO_PUSH_IGNORED_UP_TO_DATE = "Could not push because the repository is up-to-date.";
+
+    private static final String ERROR_AUTHENTICATION_REQUIRED = "Authentication is required but no CredentialsProvider has been registered";
+    private static final String ERROR_AUTHENTICATION_FAILED   = "fatal: Authentication failed for '%s/'" + lineSeparator();
+
+    private static final String ERROR_BRANCH_LIST_UNSUPPORTED_LIST_MODE = "Unsupported list mode '%s'. Must be either 'a' or 'r'.";
+    private static final String ERROR_TAG_DELETE                        = "Could not delete the tag %1$s. An error occurred: %2$s.";
+    private static final String ERROR_LOG_NO_HEAD_EXISTS                = "No HEAD exists and no explicit starting revision was specified";
+    private static final String ERROR_INIT_FOLDER_MISSING               = "The working folder %s does not exist.";
+    private static final String ERROR_NO_REMOTE_REPOSITORY              = "No remote repository specified.  Please, specify either a " +
+                                                                          "URL or a remote name from which new revisions should be " +
+                                                                          "fetched in request.";
+
+    private static final String MESSAGE_COMMIT_NOT_POSSIBLE       = "Commit is not possible because repository state is '%s'";
+    private static final String MESSAGE_COMMIT_AMEND_NOT_POSSIBLE = "Amend is not possible because repository state is '%s'";
 
     private static final Logger LOG = LoggerFactory.getLogger(JGitConnection.class);
 
@@ -326,7 +332,7 @@ class JGitConnection implements GitConnection {
             checkoutCommand.call();
         } catch (GitAPIException exception) {
             if (exception.getMessage().endsWith("already exists")) {
-                throw new GitException(String.format(ERROR_BRANCH_NAME_EXISTS, name != null ? name : cleanRemoteName(trackBranch)));
+                throw new GitException(String.format(ERROR_CHECKOUT_BRANCH_NAME_EXISTS, name != null ? name : cleanRemoteName(trackBranch)));
             }
             throw new GitException(exception.getMessage(), exception);
         }
@@ -380,7 +386,7 @@ class JGitConnection implements GitConnection {
     public List<Branch> branchList(BranchListRequest request) throws GitException {
         String listMode = request.getListMode();
         if (listMode != null && !BranchListRequest.LIST_ALL.equals(listMode) && !BranchListRequest.LIST_REMOTE.equals(listMode)) {
-            throw new IllegalArgumentException(String.format(ERROR_UNSUPPORTED_LIST_MODE, listMode));
+            throw new IllegalArgumentException(String.format(ERROR_BRANCH_LIST_UNSUPPORTED_LIST_MODE, listMode));
         }
 
         ListBranchCommand listBranchCommand = getGit().branchList();
@@ -494,7 +500,7 @@ class JGitConnection implements GitConnection {
 
             if (request.isAmend() && !repository.getRepositoryState().canAmend()) {
                 Revision rev = newDto(Revision.class);
-                rev.setMessage(String.format(MESSAGE_AMEND_NOT_POSSIBLE, repository.getRepositoryState().getDescription()));
+                rev.setMessage(String.format(MESSAGE_COMMIT_AMEND_NOT_POSSIBLE, repository.getRepositoryState().getDescription()));
                 return rev;
             }
 
@@ -672,7 +678,7 @@ class JGitConnection implements GitConnection {
             return new LogPage(commits);
         } catch (GitAPIException | IOException exception) {
             String errorMessage = exception.getMessage();
-            if (ERROR_NO_HEAD_EXISTS.equals(errorMessage)) {
+            if (ERROR_LOG_NO_HEAD_EXISTS.equals(errorMessage)) {
                 throw new GitException(errorMessage, ErrorCodes.INIT_COMMIT_WAS_NOT_PERFORMED);
             }
             throw new GitException(errorMessage, exception);
@@ -986,7 +992,9 @@ class JGitConnection implements GitConnection {
         List<String> refSpec = request.getRefSpec();
         if (!refSpec.isEmpty()) {
             List<RefSpec> refSpecInst = new ArrayList<>(refSpec.size());
-            refSpecInst.addAll(refSpec.stream().map(RefSpec::new).collect(Collectors.toList()));
+            refSpecInst.addAll(refSpec.stream()
+                                      .map(RefSpec::new)
+                                      .collect(Collectors.toList()));
             pushCommand.setRefSpecs(refSpecInst);
         }
         pushCommand.setForce(request.isForce());
@@ -1016,12 +1024,11 @@ class JGitConnection implements GitConnection {
                 if (status != RemoteRefUpdate.Status.OK) {
                     List<String> refSpecs = request.getRefSpec();
                     if (remoteRefUpdate.getStatus() == RemoteRefUpdate.Status.UP_TO_DATE) {
-                        commandOutput = INFO_PUSH_ATTEMPT_IGNORED_UP_TO_DATE;
+                        commandOutput = INFO_PUSH_IGNORED_UP_TO_DATE;
                     } else {
                         String remoteBranch = !refSpecs.isEmpty() ? refSpecs.get(0).split(REFSPEC_COLON)[1] : "master";
                         String errorMessage =
-                                String.format(ERROR_PUSH_ATTEMPT_FAILED, currentBranch + BRANCH_REFSPEC_SEPERATOR + remoteBranch,
-                                              remoteUri);
+                                String.format(ERROR_PUSH_CONFLICTS_PRESENT, currentBranch + BRANCH_REFSPEC_SEPERATOR + remoteBranch, remoteUri);
                         if (remoteRefUpdate.getMessage() != null) {
                             errorMessage += "\nError errorMessage: " + remoteRefUpdate.getMessage() + ".";
                         }
@@ -1062,12 +1069,12 @@ class JGitConnection implements GitConnection {
         StoredConfig config = repository.getConfig();
         Set<String> remoteNames = config.getSubsections("remote");
         if (remoteNames.contains(remoteName)) {
-            throw new IllegalArgumentException(String.format(ERROR_REMOTE_NAME_ALREADY_EXISTS, remoteName));
+            throw new IllegalArgumentException(String.format(ERROR_ADD_REMOTE_NAME_ALREADY_EXISTS, remoteName));
         }
 
         String url = request.getUrl();
         if (isNullOrEmpty(url)) {
-            throw new IllegalArgumentException(ERROR_REMOTE_URL_MISSING);
+            throw new IllegalArgumentException(ERROR_ADD_REMOTE_URL_MISSING);
         }
 
         RemoteConfig remoteConfig;
@@ -1207,7 +1214,7 @@ class JGitConnection implements GitConnection {
             try {
                 remoteConfig.removeURI(new URIish(url));
             } catch (URISyntaxException e) {
-                LOG.debug(ERROR_REMOVING_INVALID_URL);
+                LOG.debug(ERROR_UPDATE_REMOTE_REMOVE_INVALID_URL);
             }
         }
 
@@ -1225,7 +1232,7 @@ class JGitConnection implements GitConnection {
             try {
                 remoteConfig.removePushURI(new URIish(url));
             } catch (URISyntaxException e) {
-                LOG.debug(ERROR_REMOVING_INVALID_URL);
+                LOG.debug(ERROR_UPDATE_REMOTE_REMOVE_INVALID_URL);
             }
         }
 
