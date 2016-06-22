@@ -43,15 +43,14 @@ import java.io.FileInputStream;
 import java.io.IOException;
 import java.net.URI;
 import java.net.URL;
+import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 import java.util.regex.Pattern;
 import java.util.stream.Collectors;
 
-import static com.google.common.base.MoreObjects.firstNonNull;
 import static com.google.common.base.Strings.isNullOrEmpty;
 import static java.lang.String.format;
-import static java.util.Collections.emptyMap;
 import static org.slf4j.LoggerFactory.getLogger;
 
 /**
@@ -81,66 +80,89 @@ public class CheEnvironmentValidator implements EnvironmentValidator {
 
     // todo validate depends on in the same way as machine name
     // todo validate that env contains machine with name equal to dependency
-    // todo use strategy to check if order is valid
+    // todo use strategy to check if order is valid, there is no cyclic dependency
+    // todo should throw another exception in case it is not possible to download recipe
     @Override
     public void validate(Environment env) throws BadRequestException, ServerException {
+        parse(env);
+    }
+
+    public List<MachineConfig> parse(Environment env) throws ServerException, IllegalArgumentException {
         EnvironmentImpl envImpl = new EnvironmentImpl(env);
 
-        List<? extends MachineConfig> machineConfigs = validateAndReturnMachines(envImpl.getRecipe());
+        List<MachineConfigImpl> machines = parseEnvironmentRecipe(envImpl.getRecipe());
 
-        for (MachineConfig machineConfig : machineConfigs) {
-            MachineExtension machineExtension = env.getMachines().get(machineConfig.getName());
+        // normalize machines extension part
+        for (MachineConfigImpl machineConfig : machines) {
+            MachineExtension machineExtension = envImpl.getMachines().get(machineConfig.getName());
             if (machineExtension == null) {
                 envImpl.getMachines().put(machineConfig.getName(), new MachineExtensionImpl(null, null));
+            } else {
+                if (machineExtension.getAgents().contains("dev")) {
+                    machineConfig.setDev(true);
+                }
+                // todo check that servers are equal
+                machineConfig.setServers(new ArrayList<>(machineExtension.getServers().values()));
             }
         }
 
-        if (envImpl.getMachines().size() > machineConfigs.size()) {
-            throw new BadRequestException("Environment contains machine description missing in environment recipe");
+        //machine configs
+        checkArgument(!machines.isEmpty(), "Environment should contain at least 1 machine");
+
+        final long devCount = machines.stream()
+                                      .filter(MachineConfig::isDev)
+                                      .count();
+        checkArgument(devCount == 1,
+                      "Environment should contain exactly 1 dev machine, but contains '%d'",
+                      devCount);
+        for (MachineConfig machineCfg : machines) {
+            validateMachine(machineCfg);
         }
+
+        return machines.stream().collect(Collectors.toList());
     }
-//todo validate depends on fields to check cyclic dependencies
+
     // todo should throw another exception in case it is not possible to download recipe
-    public List<MachineConfig> parse(EnvironmentRecipe envRecipe) throws IllegalArgumentException, ServerException {
-        String recipeContent = getContentOfRecipe(envRecipe);
-        EnvironmentRecipeContentImpl environmentRecipeContent = parseEnvironmentRecipeContent(recipeContent, envRecipe.getContentType());
-        List<MachineConfigImpl> machineConfigs =
-                environmentRecipeContent.getServices()
-                                        .entrySet()
-                                        .stream()
-                                        .map(entry -> {
-                                            ServiceImpl service = entry.getValue();
+    // todo throw exception if machine extension contains machine not in recipe
+    private List<MachineConfigImpl> parseEnvironmentRecipe(EnvironmentRecipe environmentRecipe)
+            throws IllegalArgumentException, ServerException {
+        //todo servers + agents+ dev
+        String recipeContent = getContentOfRecipe(environmentRecipe);
+        EnvironmentRecipeContentImpl environmentRecipeContent = parseEnvironmentRecipeContent(recipeContent,
+                                                                                              environmentRecipe.getContentType());
 
-                                            MachineSourceImpl machineSource;
-                                            if (service.getImage() != null) {
-                                                machineSource = new MachineSourceImpl("image").setLocation(service.getImage());
-                                            } else {
-                                                machineSource = new MachineSourceImpl("dockerfile").setLocation(service.getDockerfile());
-                                            }
+        return environmentRecipeContent.getServices()
+                                       .entrySet()
+                                       .stream()
+                                       .map(entry -> {
+                                           ServiceImpl service = entry.getValue();
 
-                                            return MachineConfigImpl.builder()
-                                                                    .setType("docker")
-                                                                    .setDev("true".equals(firstNonNull(service.getLabels(),
-                                                                                                       emptyMap()).get("dev")))
-                                                                    .setSource(machineSource)
-                                                                    .setCommand(service.getCommand())
-                                                                    .setContainerName(service.getContainerName())
-                                                                    .setDependsOn(service.getDependsOn())
-                                                                    .setEntrypoint(service.getEntrypoint())
-                                                                    .setEnvVariables(service.getEnvironment())
-                                                                    .setExpose(service.getExpose())
-                                                                    .setLabels(service.getLabels())
-                                                                    .setLimits(new LimitsImpl(
-                                                                            service.getMemLimit() != null ? service.getMemLimit()
-                                                                                                          : 0))
-                                                                    .setMachineLinks(service.getLinks())
-                                                                    .setName(entry.getKey())
-                                                                    .setPorts(service.getPorts())
-//                                                                       .setServers() todo + agents
-                                                                    .build();
-                                        })
-                                        .collect(Collectors.toList());
-        return machineConfigs.stream().collect(Collectors.toList());
+                                           MachineSourceImpl machineSource;
+                                           if (service.getImage() != null) {
+                                               machineSource = new MachineSourceImpl("image").setLocation(service.getImage());
+                                           } else {
+                                               machineSource = new MachineSourceImpl("dockerfile").setLocation(service.getDockerfile());
+                                           }
+
+                                           return MachineConfigImpl.builder()
+                                                                   .setType("docker")
+                                                                   .setSource(machineSource)
+                                                                   .setCommand(service.getCommand())
+                                                                   .setContainerName(service.getContainerName())
+                                                                   .setDependsOn(service.getDependsOn())
+                                                                   .setEntrypoint(service.getEntrypoint())
+                                                                   .setEnvVariables(service.getEnvironment())
+                                                                   .setExpose(service.getExpose())
+                                                                   .setLabels(service.getLabels())
+                                                                   .setLimits(new LimitsImpl(
+                                                                           service.getMemLimit() != null ? service.getMemLimit()
+                                                                                                         : 0))
+                                                                   .setMachineLinks(service.getLinks())
+                                                                   .setName(entry.getKey())
+                                                                   .setPorts(service.getPorts())
+                                                                   .build();
+                                       })
+                                       .collect(Collectors.toList());
     }
 
     private EnvironmentRecipeContentImpl parseEnvironmentRecipeContent(String recipeContent, String contentType) {
@@ -174,25 +196,6 @@ public class CheEnvironmentValidator implements EnvironmentValidator {
                                                    "' is unsupported. Supported values are: application/json, application/x-yaml");
         }
         return envRecipeContent;
-    }
-
-    private List<? extends MachineConfig> validateAndReturnMachines(EnvironmentRecipe envRecipe) throws ServerException, IllegalArgumentException {
-        List<? extends MachineConfig> machines = parse(envRecipe);
-
-        //machine configs
-        checkArgument(!machines.isEmpty(), "Environment should contain at least 1 machine");
-
-        final long devCount = machines.stream()
-                                      .filter(MachineConfig::isDev)
-                                      .count();
-        checkArgument(devCount == 1,
-                      "Environment should contain exactly 1 dev machine, but contains '%d'",
-                      devCount);
-        for (MachineConfig machineCfg : machines) {
-            validateMachine(machineCfg);
-        }
-
-        return machines;
     }
 
     private void validateMachine(MachineConfig machineCfg) throws IllegalArgumentException {

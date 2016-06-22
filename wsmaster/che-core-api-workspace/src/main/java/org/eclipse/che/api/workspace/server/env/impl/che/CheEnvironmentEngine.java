@@ -106,7 +106,7 @@ public class CheEnvironmentEngine implements EnvironmentEngine {
             throws ServerException, NotFoundException, ConflictException, IllegalArgumentException {
 
         // check old and new environment format
-        List<MachineConfig> machineConfigs = cheEnvironmentValidator.parse(env.getRecipe());
+        List<MachineConfig> machineConfigs = cheEnvironmentValidator.parse(env);
 
         machineConfigs = startStrategy.order(machineConfigs);
 
