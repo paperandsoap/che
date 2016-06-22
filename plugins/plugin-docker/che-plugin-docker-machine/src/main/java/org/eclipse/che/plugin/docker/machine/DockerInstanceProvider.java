@@ -291,6 +291,10 @@ public class DockerInstanceProvider implements InstanceProvider {
                                                                                          machine.getId(),
                                                                                          userName,
                                                                                          machine.getConfig().getName());
+
+        final long machineMemory = machine.getConfig().getLimits().getRam() * 1024L * 1024L;
+        final long machineMemorySwap = memorySwapMultiplier == -1 ? -1 : (long)(machineMemory * memorySwapMultiplier);
+
         // get recipe
         // - it's a dockerfile type:
         //    - location defined : download this location and get script as recipe
@@ -304,7 +308,11 @@ public class DockerInstanceProvider implements InstanceProvider {
             if (isNullOrEmpty(machineSource.getLocation())) {
                 throw new InvalidRecipeException(String.format("The type '%s' needs to be used with a location, not with any other parameter. Found '%s'.", type, machineSource));
             }
-            return createInstanceFromImage(machine, machineContainerName, creationLogsOutput);
+            return createInstanceFromImage(machine,
+                                           machineContainerName,
+                                           creationLogsOutput,
+                                           machineMemory,
+                                           machineMemorySwap);
         } else {
             // not supported
             throw new UnsupportedRecipeException("The type '" + type + "' is not supported");
@@ -312,19 +320,23 @@ public class DockerInstanceProvider implements InstanceProvider {
         final Dockerfile dockerfile = parseRecipe(recipe);
 
         final String machineImageName = "eclipse-che/" + machineContainerName;
-        final long memoryLimit = (long)machine.getConfig().getLimits().getRam() * 1024 * 1024;
 
-        buildImage(dockerfile, creationLogsOutput, machineImageName, doForcePullOnBuild, memoryLimit, -1);
+        buildImage(dockerfile, creationLogsOutput, machineImageName, doForcePullOnBuild, machineMemory, machineMemorySwap);
 
         return createInstance(machineContainerName,
                               machine,
                               machineImageName,
-                              creationLogsOutput);
+                              creationLogsOutput,
+                              machineMemory,
+                              machineMemorySwap);
     }
 
-    protected Instance createInstanceFromImage(final Machine machine, String machineContainerName,
-                                               final LineConsumer creationLogsOutput) throws NotFoundException,
-                                                                                             MachineException {
+    protected Instance createInstanceFromImage(final Machine machine,
+                                               String machineContainerName,
+                                               final LineConsumer creationLogsOutput,
+                                               long memory,
+                                               long memorySwap) throws NotFoundException,
+                                                                       MachineException {
         final DockerMachineSource dockerMachineSource = new DockerMachineSource(machine.getConfig().getSource());
 
         // todo bug is here; impossible to create machines from image (not snapshot case).
@@ -352,7 +364,9 @@ public class DockerInstanceProvider implements InstanceProvider {
         return createInstance(machineContainerName,
                               machine,
                               machineImageName,
-                              creationLogsOutput);
+                              creationLogsOutput,
+                              memory,
+                              memorySwap);
     }
 
     private Dockerfile parseRecipe(final Recipe recipe) throws InvalidRecipeException {
@@ -516,7 +530,9 @@ public class DockerInstanceProvider implements InstanceProvider {
     private Instance createInstance(final String containerName,
                                     final Machine machine,
                                     final String imageName,
-                                    final LineConsumer outputConsumer)
+                                    final LineConsumer outputConsumer,
+                                    long memory,
+                                    long memorySwap)
             throws MachineException {
         try {
             String networkName = machine.getWorkspaceId();
@@ -545,8 +561,6 @@ public class DockerInstanceProvider implements InstanceProvider {
                 env = new ArrayList<>(commonMachineEnvVariables);
             }
 
-            final long machineMemory = machine.getConfig().getLimits().getRam() * 1024L * 1024L;
-            final long machineMemorySwap = memorySwapMultiplier == -1 ? -1 : (long)(machineMemory * memorySwapMultiplier);
             config.getServers()
                   .stream()
                   .forEach(serverConf -> portsToExpose.put(serverConf.getPort(), Collections.emptyMap()));
@@ -586,8 +600,8 @@ public class DockerInstanceProvider implements InstanceProvider {
             hostConfig.withBinds(volumes)
                       .withExtraHosts(allMachinesExtraHosts)
                       .withPublishAllPorts(true)
-                      .withMemorySwap(machineMemorySwap)
-                      .withMemory(machineMemory)
+                      .withMemorySwap(memorySwap)
+                      .withMemory(memory)
                       .withPrivileged(privilegeMode)
                       .withNetworkMode(networkName);
             final ContainerConfig containerConfig = new ContainerConfig();
