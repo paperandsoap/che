@@ -12,12 +12,16 @@ package org.eclipse.che.api.user.server.model.impl;
 
 import org.eclipse.che.api.core.model.user.Profile;
 
+import javax.persistence.CollectionTable;
+import javax.persistence.Column;
+import javax.persistence.ElementCollection;
 import javax.persistence.Entity;
 import javax.persistence.Id;
-import javax.persistence.OneToOne;
+import javax.persistence.JoinColumn;
+import javax.persistence.MapKeyColumn;
 import javax.persistence.PrimaryKeyJoinColumn;
 import javax.persistence.Table;
-import javax.persistence.Transient;
+import javax.persistence.UniqueConstraint;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.Objects;
@@ -28,35 +32,25 @@ import java.util.Objects;
  * @author Yevhenii Voevodin
  */
 @Entity(name = "Profile")
-@Table
+@Table(name = "profile")
 public class ProfileImpl implements Profile {
 
     @Id
+    @Column(name = "user_id")
     private String userId;
 
-    @OneToOne
     @PrimaryKeyJoinColumn
     public UserImpl user;
 
-    public UserImpl getUser() {
-        return user;
-    }
-
-    @Transient
+    // mapping delegated to 'user' field
     private String email;
-    /*
 
-             <element-collection name="attributes" target-class="java.lang.String">
-                <map-key-class class="java.lang.String"/>
-                <map-key-column name="KEY" nullable="false"/>
-                <column name="VALUE" />r
-                <collection-table name="PROFILE_ATTRIBUTES" >
-                    <join-column name="PROFILE_ID" />
-                </collection-table>
-            </element-collection>
-
-     */
-    @Transient
+    @ElementCollection
+    @MapKeyColumn(name = "name")
+    @Column(name = "value")
+    @CollectionTable(name = "profile_attributes",
+                     joinColumns = @JoinColumn(name = "user_id"),
+                     uniqueConstraints = @UniqueConstraint(columnNames = {"user_id", "name"}))
     private Map<String, String> attributes;
 
     public ProfileImpl() {}
@@ -82,9 +76,20 @@ public class ProfileImpl implements Profile {
         return userId;
     }
 
+    public void setUserId(String userId) {
+        this.userId = userId;
+    }
+
     @Override
     public String getEmail() {
+        if (email == null) {
+            email = user.getEmail();
+        }
         return email;
+    }
+
+    public void setEmail(String email) {
+        this.email = email;
     }
 
     @Override
@@ -99,7 +104,6 @@ public class ProfileImpl implements Profile {
         this.attributes = attributes;
     }
 
-
     @Override
     public boolean equals(Object obj) {
         if (this == obj) {
@@ -110,7 +114,7 @@ public class ProfileImpl implements Profile {
         }
         final ProfileImpl that = (ProfileImpl)obj;
         return Objects.equals(userId, that.userId)
-               && Objects.equals(email, that.email)
+               && Objects.equals(getEmail(), that.getEmail())
                && getAttributes().equals(that.getAttributes());
     }
 
@@ -118,7 +122,7 @@ public class ProfileImpl implements Profile {
     public int hashCode() {
         int hash = 7;
         hash = 31 * hash + Objects.hashCode(userId);
-        hash = 31 * hash + Objects.hashCode(email);
+        hash = 31 * hash + Objects.hashCode(getEmail());
         hash = 31 * hash + getAttributes().hashCode();
         return hash;
     }
@@ -127,7 +131,7 @@ public class ProfileImpl implements Profile {
     public String toString() {
         return "ProfileImpl{" +
                "userId='" + userId + '\'' +
-               ", email='" + email + '\'' +
+               ", email='" + getEmail() + '\'' +
                ", attributes=" + attributes +
                '}';
     }
