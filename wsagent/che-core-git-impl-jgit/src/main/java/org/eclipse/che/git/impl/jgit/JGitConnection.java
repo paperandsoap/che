@@ -485,6 +485,7 @@ class JGitConnection implements GitConnection {
             if (committer == null) {
                 throw new GitException("Committer can't be null");
             }
+
             //Check that there are staged changes present for commit, or any changes if is 'isAll' enabled, otherwise throw exception
             Status status = status(StatusFormat.SHORT);
             if (!request.isAll() && status.getAdded().isEmpty() && status.getChanged().isEmpty() && status.getRemoved().isEmpty()) {
@@ -492,6 +493,7 @@ class JGitConnection implements GitConnection {
             } else if (request.isAll() && status.isClean()) {
                 throw new GitException("Nothing to commit, working directory clean");
             }
+
             String committerName = committer.getName();
             String committerEmail = committer.getEmail();
             if (committerName == null || committerEmail == null) {
