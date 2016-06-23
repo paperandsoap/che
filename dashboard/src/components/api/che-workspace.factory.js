@@ -230,11 +230,9 @@ export class CheWorkspace {
     ram = ram || 2048;
 
     //Check environments were provided in config:
-    config.environments = (config.environments && config.environments.length > 0) ? config.environments : {};
+    config.environments = (config.environments && Object.keys(config.environments).length > 0) ? config.environments : {};
 
-    let defaultEnvironment = this.lodash.find(config.environments, (environment) => {
-      return environment.name === config.defaultEnv;
-    });
+    let defaultEnvironment = config.environments[config.defaultEnv];
 
     //Check default environment is provided and add if there is no:
     if (!defaultEnvironment) {
@@ -255,7 +253,9 @@ export class CheWorkspace {
 
       defaultEnvironment.recipe.content = source.content || null;
       defaultEnvironment.recipe.location = source.location || null;
+    }
 
+    if (defaultEnvironment.recipe && defaultEnvironment.recipe.type === 'opencompose') {
       return config;
     }
 
