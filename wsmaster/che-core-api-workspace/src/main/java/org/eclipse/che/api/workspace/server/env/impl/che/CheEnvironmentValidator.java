@@ -141,7 +141,8 @@ public class CheEnvironmentValidator implements EnvironmentValidator {
                                            if (service.getImage() != null) {
                                                machineSource = new MachineSourceImpl("image").setLocation(service.getImage());
                                            } else {
-                                               machineSource = new MachineSourceImpl("dockerfile").setLocation(service.getDockerfile());
+                                               // todo how to set custom dockerfile path?
+                                               machineSource = new MachineSourceImpl("docker-build-context").setLocation(service.getContext());
                                            }
 
                                            return MachineConfigImpl.builder()

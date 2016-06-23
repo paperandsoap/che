@@ -106,6 +106,11 @@ public class DockerInstanceProvider implements InstanceProvider {
      */
     public static final String DOCKER_IMAGE_TYPE = "image";
 
+    /**
+     * docker build context type support with image build context URI
+     */
+    public static final String DOCKER_CONTEXT_TYPE = "docker-build-context";
+
     private final DockerConnector                  docker;
     private final DockerInstanceStopDetector       dockerInstanceStopDetector;
     private final DockerContainerNameGenerator     containerNameGenerator;
@@ -294,45 +299,65 @@ public class DockerInstanceProvider implements InstanceProvider {
 
         final long machineMemory = machine.getConfig().getLimits().getRam() * 1024L * 1024L;
         final long machineMemorySwap = memorySwapMultiplier == -1 ? -1 : (long)(machineMemory * memorySwapMultiplier);
+        final String machineImageName = "eclipse-che/" + machineContainerName;
 
-        // get recipe
+        // get container creation source
         // - it's a dockerfile type:
         //    - location defined : download this location and get script as recipe
         //    - content defined  : use this content as recipe script
         // - it's an image:
         //    - use location of image ([registry:port]/<repository-image>[:tag][@digest])
-        final Recipe recipe;
-        if (DOCKER_FILE_TYPE.equals(type)) {
-            recipe = this.recipeRetriever.getRecipe(machineConfig);
-        } else if (DOCKER_IMAGE_TYPE.equals(type)) {
-            if (isNullOrEmpty(machineSource.getLocation())) {
-                throw new InvalidRecipeException(String.format("The type '%s' needs to be used with a location, not with any other parameter. Found '%s'.", type, machineSource));
-            }
-            return createInstanceFromImage(machine,
-                                           machineContainerName,
-                                           creationLogsOutput,
-                                           machineMemory,
-                                           machineMemorySwap);
-        } else {
-            // not supported
-            throw new UnsupportedRecipeException("The type '" + type + "' is not supported");
+        // - it's a remote build context
+        //    - use remote parameter to build image
+        switch (type) {
+            case DOCKER_FILE_TYPE:
+                final Recipe recipe = this.recipeRetriever.getRecipe(machineConfig);
+                final Dockerfile dockerfile = parseRecipe(recipe);
+                // todo EnableOfflineDockerMachineBuildInterceptor
+                buildImage(dockerfile, null, creationLogsOutput, machineImageName, doForcePullOnBuild, machineMemory, machineMemorySwap);
+
+                return createInstance(machineContainerName,
+                                      machine,
+                                      machineImageName,
+                                      creationLogsOutput,
+                                      machineMemory,
+                                      machineMemorySwap);
+            case DOCKER_IMAGE_TYPE:
+                if (isNullOrEmpty(machineSource.getLocation())) {
+                    throw new InvalidRecipeException(
+                            String.format("The type '%s' needs to be used with a location, not with any other parameter. Found '%s'.", type,
+                                          machineSource));
+                }
+                return createInstanceFromImage(machine,
+                                               machineContainerName,
+                                               machineImageName,
+                                               creationLogsOutput,
+                                               machineMemory,
+                                               machineMemorySwap);
+            case DOCKER_CONTEXT_TYPE:
+                buildImage(null,
+                           machine.getConfig().getSource().getLocation(),
+                           creationLogsOutput,
+                           machineImageName,
+                           doForcePullOnBuild,
+                           machineMemory,
+                           machineMemorySwap);
+
+                return createInstance(machineContainerName,
+                                      machine,
+                                      machineImageName,
+                                      creationLogsOutput,
+                                      machineMemory,
+                                      machineMemorySwap);
+            default:
+                // not supported
+                throw new UnsupportedRecipeException("The type '" + type + "' is not supported");
         }
-        final Dockerfile dockerfile = parseRecipe(recipe);
-
-        final String machineImageName = "eclipse-che/" + machineContainerName;
-
-        buildImage(dockerfile, creationLogsOutput, machineImageName, doForcePullOnBuild, machineMemory, machineMemorySwap);
-
-        return createInstance(machineContainerName,
-                              machine,
-                              machineImageName,
-                              creationLogsOutput,
-                              machineMemory,
-                              machineMemorySwap);
     }
 
     protected Instance createInstanceFromImage(final Machine machine,
                                                String machineContainerName,
+                                               String machineImageName,
                                                final LineConsumer creationLogsOutput,
                                                long memory,
                                                long memorySwap) throws NotFoundException,
@@ -345,7 +370,6 @@ public class DockerInstanceProvider implements InstanceProvider {
         pullImage(dockerMachineSource, creationLogsOutput);
 //        }
 
-        final String machineImageName = "eclipse-che/" + machineContainerName;
         final String fullNameOfPulledImage = dockerMachineSource.getLocation(false);
         try {
             // tag image with generated name to allow sysadmin recognize it
@@ -395,6 +419,7 @@ public class DockerInstanceProvider implements InstanceProvider {
     }
 
     protected void buildImage(final Dockerfile dockerfile,
+                              final String remote,
                               final LineConsumer creationLogsOutput,
                               final String imageName,
                               final boolean doForcePullOnBuild,
@@ -402,25 +427,32 @@ public class DockerInstanceProvider implements InstanceProvider {
                               final long memorySwapLimit)
             throws MachineException {
 
+        final ProgressLineFormatterImpl progressLineFormatter = new ProgressLineFormatterImpl();
+        final ProgressMonitor progressMonitor = currentProgressStatus -> {
+            try {
+                creationLogsOutput.writeLine(progressLineFormatter.format(currentProgressStatus));
+            } catch (IOException e) {
+                LOG.error(e.getLocalizedMessage(), e);
+            }
+        };
+
         File workDir = null;
         try {
-            // build docker image
-            workDir = Files.createTempDirectory(null).toFile();
-            final File dockerfileFile = new File(workDir, "Dockerfile");
-            dockerfile.writeDockerfile(dockerfileFile);
-            final List<File> files = new LinkedList<>();
-            //noinspection ConstantConditions
-            Collections.addAll(files, workDir.listFiles());
-            final ProgressLineFormatterImpl progressLineFormatter = new ProgressLineFormatterImpl();
-            final ProgressMonitor progressMonitor = currentProgressStatus -> {
-                try {
-                    creationLogsOutput.writeLine(progressLineFormatter.format(currentProgressStatus));
-                } catch (IOException e) {
-                    LOG.error(e.getLocalizedMessage(), e);
-                }
-            };
-            docker.buildImage(BuildImageParams.create(files.toArray(new File[files.size()]))
-                                              .withRepository(imageName)
+            BuildImageParams buildImageParams;
+            if (remote != null) {
+                buildImageParams = BuildImageParams.create(remote);
+            } else {
+                // build docker image
+                workDir = Files.createTempDirectory(null).toFile();
+                final File dockerfileFile = new File(workDir, "Dockerfile");
+                dockerfile.writeDockerfile(dockerfileFile);
+                final List<File> files = new LinkedList<>();
+                //noinspection ConstantConditions
+                Collections.addAll(files, workDir.listFiles());
+                buildImageParams = BuildImageParams.create(files.toArray(new File[files.size()]));
+            }
+            // todo add dockerfile param
+            docker.buildImage(buildImageParams.withRepository(imageName)
                                               .withDoForcePull(doForcePullOnBuild)
                                               .withMemoryLimit(memoryLimit)
                                               .withMemorySwapLimit(memorySwapLimit),
