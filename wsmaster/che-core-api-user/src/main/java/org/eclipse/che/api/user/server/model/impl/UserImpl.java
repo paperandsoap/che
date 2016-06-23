@@ -12,14 +12,12 @@ package org.eclipse.che.api.user.server.model.impl;
 
 import org.eclipse.che.api.core.model.user.User;
 
-import javax.persistence.Basic;
 import javax.persistence.CollectionTable;
 import javax.persistence.Column;
 import javax.persistence.ElementCollection;
 import javax.persistence.Entity;
 import javax.persistence.Id;
 import javax.persistence.JoinColumn;
-import javax.persistence.Table;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.List;
@@ -31,27 +29,24 @@ import java.util.Objects;
  * @author Yevhenii Voevodin
  */
 @Entity(name = "User")
-@Table
 public class UserImpl implements User {
 
     @Id
+    @Column(name = "id")
     private String id;
 
-    @Basic
-    @Column(unique = true, nullable = false)
+    @Column(name = "email", unique = true, nullable = false)
     private String email;
 
-    @Basic
-    @Column(unique = true, nullable = false)
+    @Column(name = "name", unique = true, nullable = false)
     private String name;
 
-    @Basic
+    @Column(name = "password")
     private String password;
 
     @ElementCollection
-    @Column(nullable = false, unique = true)
-    @CollectionTable(name = "USER_ALIASES")
-    @JoinColumn(name = "USER_ID")
+    @Column(name = "alias", nullable = false, unique = true)
+    @CollectionTable(name = "user_aliases", joinColumns = @JoinColumn(name = "user_id"))
     private List<String> aliases;
 
     public UserImpl() {}

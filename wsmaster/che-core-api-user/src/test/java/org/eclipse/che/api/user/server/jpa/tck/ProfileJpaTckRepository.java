@@ -48,7 +48,8 @@ public class ProfileJpaTckRepository implements TckRepository<ProfileImpl> {
     public void removeAll() throws TckRepositoryException {
         final EntityManager manager = factory.createEntityManager();
         manager.getTransaction().begin();
-        manager.createQuery("DELETE FROM Profile");
+        manager.createQuery("DELETE FROM Profile").executeUpdate();
+        manager.createQuery("DELETE FROM User").executeUpdate();
         manager.getTransaction().commit();
         manager.close();
     }

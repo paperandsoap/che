@@ -10,9 +10,7 @@
  *******************************************************************************/
 package org.eclipse.che.api.user.server.jpa;
 
-import org.eclipse.che.api.core.jdbc.jpa.vendor.h2.H2ExceptionHandler;
 import org.eclipse.che.commons.test.tck.AbstractTestListener;
-import org.eclipse.persistence.config.PersistenceUnitProperties;
 import org.eclipse.persistence.config.TargetServer;
 import org.testng.ITestContext;
 

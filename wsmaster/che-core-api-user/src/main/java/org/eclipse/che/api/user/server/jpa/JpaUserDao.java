@@ -88,8 +88,7 @@ public class JpaUserDao implements UserDao {
         final EntityManager manager = factory.createEntityManager();
         try {
             manager.getTransaction().begin();
-            final UserImpl user = manager.find(UserImpl.class, update.getId());
-            if (user == null) {
+            if (manager.find(UserImpl.class, update.getId()) == null) {
                 throw new NotFoundException(format("Couldn't update user with id '%s' because it doesn't exist", update.getId()));
             }
             manager.merge(update);
