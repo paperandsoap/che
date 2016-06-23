@@ -130,5 +130,6 @@ public class LanguageServerRegistry {
 		server.getTextDocumentService().onPublishDiagnostics(publishDiagnosticsMessenger::onEvent);
         //TODO do we need to send this log messages ot client(browser)?
 		server.getWindowService().onLogMessage(messageParams -> LOG.error(messageParams.getType() + " " + messageParams.getMessage()));
+		server.getWindowService().onTelemetryEvent(System.out::println);
 	}
 }
