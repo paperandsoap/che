@@ -64,6 +64,7 @@ import java.io.File;
 import java.io.IOException;
 import java.io.InputStream;
 import java.net.HttpURLConnection;
+import java.net.SocketTimeoutException;
 import java.net.URL;
 import java.nio.file.Files;
 import java.util.ArrayList;
@@ -581,6 +582,8 @@ public class DockerInstanceProvider implements InstanceProvider {
                     docker.attachContainer(AttachContainerParams.create(containerId)
                                                                 .withStream(true),
                                            new LogMessagePrinter(outputConsumer));
+                } catch (SocketTimeoutException ignore) {
+                    // It means that workspace is stopped due to timeout and no need to stream logs anymore.
                 } catch (IOException e) {
                     LOG.warn("Failed to stream events from container {} with {} id", containerName, containerId);
                 }
