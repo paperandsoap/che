@@ -1,2 +1,63 @@
 [
+  {
+    "id": "ticket-monster",
+    "creator": "che",
+    "name": "TicketMonster",
+    "description": "Sample application that focuses on Java EE6 (JPA 2, CDI, EJB 3.1 and JAX-RS).",
+    "scope": "general",
+    "tags": [
+      "Java",
+      "JDK",
+      "Maven",
+      "Tomcat",
+      "Subversion",
+      "Ubuntu",
+      "Git"
+    ],
+    "components": [
+      {
+        "name": "JDK",
+        "version": "1.8.0_45"
+      },
+      {
+        "name": "Maven",
+        "version": "3.2.2"
+      },
+      {
+        "name": "Tomcat",
+        "version": "8.0.24"
+      }
+    ],
+    "source": {
+      "type": "image",
+      "origin": "eivantsov/node_dotnet"
+    },
+    "workspaceConfig": {
+      "defaultEnv": "default",
+      "environments": {
+        "default" : {
+          "recipe" : {
+            "type" : "opencompose",
+            "contentType" : "application/json",
+            "content": null,
+            "location": "https://gist.githubusercontent.com/eivantsov/92447a4aea9afd536dcff61a97438b75/raw/9954f65241505a23b342aa36d015e2745bb217e1/recipe.json"
+          },
+          "machines" : {}
+        }
+      },
+      "name": "demo-workspace"
+    },
+    "acl": [
+      {
+        "user": "*",
+        "actions": [
+          "search"
+        ]
+      }
+    ],
+    "stackIcon": {
+      "name": "ticket-monster.svg",
+      "mediaType": "image/svg+xml"
+    }
+  }
 ]

@@ -1,0 +1,10 @@
+<?xml version="1.0" encoding="UTF-8" standalone="no"?>
+<svg id="Layer_1" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" height="100%" width="100%" version="1.1" xmlns:cc="http://creativecommons.org/ns#" xmlns:dc="http://purl.org/dc/elements/1.1/">
+ <style id="style3">.st0{fill:#FFF}.st1{fill:#a30000}.st2{fill:#C00}</style>
+ <g id="g2996" transform="matrix(0.43097644,0,0,0.43097644,-22.177441,-23.096642)">
+  <path id="path7" class="st1" fill="#a30000" d="m171.3,98.1-16,15.9,13.3,13.3h31.9zm-45,71.5-13.3-13.2-16,15.9,29.3,29.2v-31.9z"/>
+  <path id="path9" class="st2" fill="#C00" d="m168.6,127.3-42.3,42.3v31.9l74.2-74.2z"/>
+  <path id="path11" class="st1" fill="#a30000" d="M81.3,156.5,97.2,140.6,84,127.3h-32zm45-71.5,13.2,13.3,16-16-29.2-29.2v61.1z"/>
+  <path id="path13" class="st2" fill="#C00" d="M84,127.3,126.3,85v-31.9l-74.3,74.2z"/>
+ </g>
+</svg>
