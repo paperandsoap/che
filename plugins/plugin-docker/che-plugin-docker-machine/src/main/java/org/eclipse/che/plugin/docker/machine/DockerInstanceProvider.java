@@ -105,7 +105,7 @@ public class DockerInstanceProvider implements InstanceProvider {
 
     private final DockerConnector                               docker;
     private final UserSpecificDockerRegistryCredentialsProvider dockerCredentials;
-    private final ExecutorService                               machineLogsStreamer;
+    private final ExecutorService                               executor;
     private final DockerInstanceStopDetector                    dockerInstanceStopDetector;
     private final DockerContainerNameGenerator                  containerNameGenerator;
     private final WorkspaceFolderPathProvider                   workspaceFolderPathProvider;
@@ -208,9 +208,9 @@ public class DockerInstanceProvider implements InstanceProvider {
             this.allMachinesExtraHosts = ObjectArrays.concat(allMachinesExtraHosts.split(","), dockerHost);
         }
 
-        machineLogsStreamer = Executors.newCachedThreadPool(new ThreadFactoryBuilder().setNameFormat("MachineLogs-%d")
-                                                                                      .setDaemon(true)
-                                                                                      .build());
+        executor = Executors.newCachedThreadPool(new ThreadFactoryBuilder().setNameFormat("MachineLogsStreamer-%d")
+                                                                           .setDaemon(true)
+                                                                           .build());
     }
 
     /**
@@ -576,7 +576,7 @@ public class DockerInstanceProvider implements InstanceProvider {
 
             docker.startContainer(StartContainerParams.create(containerId));
 
-            machineLogsStreamer.execute(() -> {
+            executor.execute(() -> {
                 try {
                     docker.attachContainer(AttachContainerParams.create(containerId)
                                                                 .withStream(true),
@@ -618,21 +618,6 @@ public class DockerInstanceProvider implements InstanceProvider {
         return paths.stream()
                     .filter(path -> !Strings.isNullOrEmpty(path))
                     .collect(Collectors.toSet());
-    }
-
-    @PreDestroy
-    private void cleanup() {
-        machineLogsStreamer.shutdown();
-        try {
-            if (!machineLogsStreamer.awaitTermination(10, TimeUnit.SECONDS)) {
-                machineLogsStreamer.shutdownNow();
-                if (!machineLogsStreamer.awaitTermination(10, TimeUnit.SECONDS)) {
-                    LOG.warn("Unable terminate loggers pool");
-                }
-            }
-        } catch (InterruptedException e) {
-            machineLogsStreamer.shutdownNow();
-        }
     }
 
 }
