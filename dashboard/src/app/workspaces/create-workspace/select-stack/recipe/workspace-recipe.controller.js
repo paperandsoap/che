@@ -35,7 +35,7 @@ export class WorkspaceRecipeCtrl {
       lineWrapping: true,
       lineNumbers: true,
       matchBrackets: true,
-      mode: 'text/x-yaml',
+      mode: this.recipeFormat,
       onLoad: (editor) => {
         this.setEditor(editor);
       }
@@ -48,26 +48,36 @@ export class WorkspaceRecipeCtrl {
     this.recipeFormat = 'text/x-yaml';
   }
 
-  onFormatChanged(format) {
-    this.editorOptions.mode = format;
-    this.recipeFormat = format;
-    this.formatEditor(this.editor);
-  }
-
   setEditor(editor) {
     this.editor = editor;
     editor.on('paste', () => {
-      this.formatEditor(editor);
+      this.detectFormat(editor, true);
+    });
+    editor.on('change', () => {
+      this.detectFormat(editor, false);
     });
   }
 
-  formatEditor(editor) {
-    if (this.editorOptions.mode === 'text/x-yaml') {
-      return;
-    }
-
+  detectFormat(editor, doFormating) {
     this.$timeout(() => {
-      for(var i = 0; i <= editor.lineCount(); i++){
+      let content = editor.getValue();
+      try {
+        content = angular.fromJson(content);
+        this.recipeFormat = 'application/json';
+        this.editorOptions.mode = this.recipeFormat;
+        if (doFormating) {
+          this.formatLines(editor);
+        }
+      } catch (e) {
+        this.recipeFormat = 'text/x-yaml';
+        this.editorOptions.mode = this.recipeFormat;
+      }
+    }, 100);
+  }
+
+  formatLines(editor) {
+    this.$timeout(() => {
+      for(var i = 0; i <= editor.lineCount(); i++) {
         editor.indentLine(i);
       }
     }, 100);

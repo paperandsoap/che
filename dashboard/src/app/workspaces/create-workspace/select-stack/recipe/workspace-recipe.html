@@ -1,11 +1,5 @@
 <div layout="column" flex class="recipe-widget">
   <div class="stack-label-info">Bring your own stack.</div>
-  <che-label-container che-label-name="Choose recipe format" class="format-container">
-    <che-toggle ng-init="format='YAML'" ng-model="format">
-      <che-toggle-button che-title="YAML" ng-click="workspaceRecipeCtrl.onFormatChanged('text/x-yaml')"></che-toggle-button>
-      <che-toggle-button che-title="JSON" ng-click="workspaceRecipeCtrl.onFormatChanged('application/json')"></che-toggle-button>
-    </che-toggle>
-  </che-label-container>
   <ng-form name="workspaceInformationForm">
     <md-radio-group ng-model="workspaceRecipeCtrl.selectSourceOption" ng-change="workspaceRecipeCtrl.setDefaultData()">
       <div layout="column" flex="100">
@@ -13,10 +7,10 @@
           <md-radio-button value="upload-custom-stack">Import custom stack</md-radio-button>
           <div layout="row" layout-wrap>
             <div ng-if="workspaceRecipeCtrl.selectSourceOption === 'upload-custom-stack'" class="recipe-url">
-              <che-label-container che-label-name="Open Compose URL">
+              <che-label-container che-label-name="Recipe URL">
                 <che-input che-form="workspaceInformationForm"
                             che-name="url"
-                            che-place-holder="URL of the open compose file"
+                            che-place-holder="URL of the Recipe"
                             che-pattern="(^((ftp|http|https)://[\w@.\-\_]+(:\d{1,5})?(/[\w#!:.?+=&%@!\_\-/]+)*){1}$)"
                             ng-model="workspaceRecipeCtrl.recipeUrl"
                             ng-maxlength="255">
