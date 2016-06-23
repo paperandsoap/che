@@ -32,7 +32,7 @@ import java.io.IOException;
  *
  * @author Alexander Garagatyi
  *
- * @see org.eclipse.che.plugin.docker.machine.DockerInstanceProvider#buildImage(Dockerfile, LineConsumer, String, boolean, long, long)
+ * @see org.eclipse.che.plugin.docker.machine.DockerInstanceProvider#buildImage(Dockerfile, String, LineConsumer, String, boolean, long, long)
  */
 public class EnableOfflineDockerMachineBuildInterceptor implements MethodInterceptor {
     private static final Logger LOG = LoggerFactory.getLogger(EnableOfflineDockerMachineBuildInterceptor.class);
@@ -42,11 +42,13 @@ public class EnableOfflineDockerMachineBuildInterceptor implements MethodInterce
 
     @Override
     public Object invoke(MethodInvocation methodInvocation) throws Throwable {
+        // do not call pull if build not from dockerfile because it is not possible to find what to pull
+        final boolean isBuildFromDockerfile = methodInvocation.getArguments()[1] == null;
         // If force pull of base image is not disabled ensure that image build won't fail if needed layers are cached
         // but update of them fails due to network outage.
         // To do that do pull manually if needed and do not force docker to do pull itself.
-        final boolean isForcePullEnabled = (boolean)methodInvocation.getArguments()[3];
-        if (isForcePullEnabled) {
+        final boolean isForcePullEnabled = (boolean)methodInvocation.getArguments()[4];
+        if (isBuildFromDockerfile && isForcePullEnabled) {
             final Dockerfile dockerfile = (Dockerfile)methodInvocation.getArguments()[0];
             final LineConsumer creationLogsOutput = (LineConsumer)methodInvocation.getArguments()[1];
 
@@ -56,7 +58,9 @@ public class EnableOfflineDockerMachineBuildInterceptor implements MethodInterce
             }
         }
 
-        methodInvocation.getArguments()[3] = Boolean.FALSE;
+        if (isBuildFromDockerfile) {
+            methodInvocation.getArguments()[4] = Boolean.FALSE;
+        }
         return methodInvocation.proceed();
     }
 

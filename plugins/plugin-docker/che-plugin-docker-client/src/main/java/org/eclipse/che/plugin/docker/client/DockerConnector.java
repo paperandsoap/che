@@ -1214,7 +1214,7 @@ public class DockerConnector {
             return buildImage(params,
                               progressMonitor,
                               connectionFactory.openConnection(dockerDaemonUri)
-                                               .query(params.getRemote()));
+                                               .query("remote", params.getRemote()));
         } else {
             throw new IllegalArgumentException("Neither remote nor files parameters of build command is set");
         }

@@ -93,6 +93,7 @@ import static org.eclipse.che.plugin.docker.machine.DockerInstance.LATEST_TAG;
  * @author Alexander Garagatyi
  * @author Roman Iuvshyn
  */
+// todo when machine fails workspace in starting state
 public class DockerInstanceProvider implements InstanceProvider {
     private static final Logger LOG = LoggerFactory.getLogger(DockerInstanceProvider.class);
 
@@ -159,7 +160,7 @@ public class DockerInstanceProvider implements InstanceProvider {
         this.workspaceFolderPathProvider = workspaceFolderPathProvider;
         this.doForcePullOnBuild = doForcePullOnBuild;
         this.privilegeMode = privilegeMode;
-        this.supportedRecipeTypes = Sets.newHashSet(DOCKER_FILE_TYPE, DOCKER_IMAGE_TYPE);
+        this.supportedRecipeTypes = Sets.newHashSet(DOCKER_FILE_TYPE, DOCKER_IMAGE_TYPE, DOCKER_CONTEXT_TYPE);
         this.projectFolderPath = projectFolderPath;
         this.snapshotUseRegistry = snapshotUseRegistry;
         // usecases:
