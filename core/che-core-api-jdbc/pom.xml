@@ -18,6 +18,7 @@
         <groupId>org.eclipse.che.core</groupId>
         <version>4.3.0-RC2-SNAPSHOT</version>
     </parent>
+    <name>Che Core :: API :: JDBC</name>
     <artifactId>che-core-api-jdbc</artifactId>
     <dependencies>
         <dependency>
