@@ -132,6 +132,8 @@ public class MachineManager {
      *         id of the workspace the created machine will belong to
      * @param environmentName
      *         environment name the created machine will belongs to
+     * @param outputConsumer
+     *         output consumer of machine
      * @return new machine
      * @throws NotFoundException
      *         if machine type from recipe is unsupported
@@ -150,7 +152,8 @@ public class MachineManager {
      */
     public MachineImpl createMachineSync(MachineConfig machineConfig,
                                          final String workspaceId,
-                                         final String environmentName)
+                                         final String environmentName,
+                                         LineConsumer outputConsumer)
             throws NotFoundException,
                    SnapshotException,
                    ConflictException,
@@ -164,7 +167,8 @@ public class MachineManager {
                                                   workspaceId,
                                                   environmentName,
                                                   this::createInstance,
-                                                  null);
+                                                  null,
+                                                  outputConsumer);
         LOG.info("Machine [ws = {}: env = {}: machine = {}] was successfully created, its id is '{}'",
                  workspaceId,
                  environmentName,
@@ -183,6 +187,8 @@ public class MachineManager {
      *         workspace id
      * @param envName
      *         name of environment
+     * @param outputConsumer
+     *         output consumer of machine
      * @return machine instance
      * @throws NotFoundException
      *         when snapshot doesn't exist
@@ -195,11 +201,15 @@ public class MachineManager {
      * @throws BadRequestException
      *         when either machineConfig or workspace id, or environment name is not valid
      */
-    public MachineImpl recoverMachine(MachineConfig machineConfig, String workspaceId, String envName) throws NotFoundException,
-                                                                                                              SnapshotException,
-                                                                                                              MachineException,
-                                                                                                              ConflictException,
-                                                                                                              BadRequestException {
+    public MachineImpl recoverMachine(MachineConfig machineConfig,
+                                      String workspaceId,
+                                      String envName,
+                                      LineConsumer outputConsumer) throws NotFoundException,
+                                                                          SnapshotException,
+                                                                          MachineException,
+                                                                          ConflictException,
+                                                                          BadRequestException {
+
         final SnapshotImpl snapshot = snapshotDao.getSnapshot(workspaceId, envName, machineConfig.getName());
 
         LOG.info("Recovering machine [ws = {}: env = {}: machine = {}] from snapshot", workspaceId, envName, machineConfig.getName());
@@ -207,7 +217,8 @@ public class MachineManager {
                                                   workspaceId,
                                                   envName,
                                                   this::createInstance,
-                                                  snapshot);
+                                                  snapshot,
+                                                  outputConsumer);
         LOG.info("Machine [ws = {}: env = {}: machine = {}] was successfully recovered, its id '{}'",
                  workspaceId,
                  envName,
@@ -226,6 +237,8 @@ public class MachineManager {
      *         id of the workspace the created machine will belong to
      * @param environmentName
      *         environment name the created machine will belongs to
+     * @param outputConsumer
+     *         output consumer of machine
      * @return new machine
      * @throws NotFoundException
      *         if machine type from recipe is unsupported
@@ -244,7 +257,8 @@ public class MachineManager {
      */
     public MachineImpl createMachineAsync(MachineConfig machineConfig,
                                           final String workspaceId,
-                                          final String environmentName)
+                                          final String environmentName,
+                                          LineConsumer outputConsumer)
             throws NotFoundException,
                    SnapshotException,
                    ConflictException,
@@ -264,14 +278,16 @@ public class MachineManager {
                                              // todo what should we do in that case?
                                          }
                                      })),
-                             null);
+                             null,
+                             outputConsumer);
     }
 
     private MachineImpl createMachine(MachineConfigImpl machineConfig,
                                       String workspaceId,
                                       String environmentName,
                                       MachineInstanceCreator instanceCreator,
-                                      SnapshotImpl snapshot)
+                                      SnapshotImpl snapshot,
+                                      LineConsumer outputConsumer)
             throws NotFoundException,
                    SnapshotException,
                    ConflictException,
@@ -323,10 +339,7 @@ public class MachineManager {
                                                     null);
 
         createMachineLogsDir(machineId);
-        final LineConsumer machineLogger = getMachineLogger(machineId, getMachineChannels(machine.getConfig().getName(),
-                                                                                          machine.getWorkspaceId(),
-                                                                                          machine.getEnvName())
-                .getOutput());
+        final LineConsumer machineLogger = getMachineLogger(machineId, outputConsumer);
 
         try {
             machineRegistry.addMachine(machine);
@@ -909,8 +922,8 @@ public class MachineManager {
     }
 
     @VisibleForTesting
-    LineConsumer getMachineLogger(String machineId, String outputChannel) throws MachineException {
-        return getLogger(getMachineFileLogger(machineId), outputChannel);
+    LineConsumer getMachineLogger(String machineId, LineConsumer outputConsumer) throws MachineException {
+        return new CompositeLineConsumer(getMachineFileLogger(machineId), outputConsumer);
     }
 
     @VisibleForTesting
@@ -923,11 +936,6 @@ public class MachineManager {
             return new CompositeLineConsumer(fileLogger, new WebsocketLineConsumer(outputChannel));
         }
         return fileLogger;
-    }
-
-    static ChannelsImpl getMachineChannels(String machineName, String workspaceId, String envName) {
-        return new ChannelsImpl(workspaceId + ':' + envName + ':' + machineName,
-                                "machine:status:" + workspaceId + ':' + machineName);
     }
 
     // cleanup machine if event about instance failure comes

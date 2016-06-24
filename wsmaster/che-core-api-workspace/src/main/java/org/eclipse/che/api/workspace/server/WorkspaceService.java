@@ -27,7 +27,6 @@ import org.eclipse.che.api.core.NotFoundException;
 import org.eclipse.che.api.core.ServerException;
 import org.eclipse.che.api.core.rest.Service;
 import org.eclipse.che.api.core.rest.annotations.GenerateLink;
-import org.eclipse.che.api.machine.server.MachineManager;
 import org.eclipse.che.api.machine.server.model.impl.CommandImpl;
 import org.eclipse.che.api.machine.server.model.impl.MachineImpl;
 import org.eclipse.che.api.machine.shared.dto.CommandDto;
@@ -80,7 +79,6 @@ public class WorkspaceService extends Service {
 
     private final WorkspaceManager   workspaceManager;
     private final WorkspaceValidator validator;
-    private final MachineManager     machineManager;
     private final WorkspaceServiceLinksInjector linksInjector;
 
     @Context
@@ -88,11 +86,9 @@ public class WorkspaceService extends Service {
 
     @Inject
     public WorkspaceService(WorkspaceManager workspaceManager,
-                            MachineManager machineManager,
                             WorkspaceValidator validator,
                             WorkspaceServiceLinksInjector workspaceServiceLinksInjector) {
         this.workspaceManager = workspaceManager;
-        this.machineManager = machineManager;
         this.validator = validator;
         this.linksInjector = workspaceServiceLinksInjector;
     }
@@ -239,7 +235,7 @@ public class WorkspaceService extends Service {
                                                                                         ConflictException,
                                                                                         ForbiddenException {
         if (!workspaceManager.getSnapshot(id).isEmpty()) {
-            machineManager.removeSnapshots(workspaceManager.getWorkspace(id).getNamespace(), id);
+            workspaceManager.removeSnapshots(id);
         }
         workspaceManager.removeWorkspace(id);
     }
@@ -701,9 +697,9 @@ public class WorkspaceService extends Service {
             throw new NotFoundException(format("Workspace '%s' is not running, new machine can't be started", workspaceId));
         }
 
-        final MachineImpl machine = machineManager.createMachineAsync(machineConfig,
-                                                                      workspaceId,
-                                                                      workspace.getRuntime().getActiveEnv());
+        final MachineImpl machine = workspaceManager.startMachine(machineConfig,
+                                                                  workspaceId,
+                                                                  workspace.getRuntime().getActiveEnv());
 
         return Response.status(201)
                        .entity(linksInjector.injectMachineLinks(org.eclipse.che.api.machine.server.DtoConverter.asDto(machine),

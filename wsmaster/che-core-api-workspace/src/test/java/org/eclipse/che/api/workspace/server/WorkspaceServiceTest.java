@@ -73,6 +73,8 @@ import static java.util.stream.Collectors.toList;
 import static java.util.stream.Collectors.toSet;
 import static org.eclipse.che.api.core.model.workspace.WorkspaceStatus.RUNNING;
 import static org.eclipse.che.api.core.model.workspace.WorkspaceStatus.STARTING;
+import static org.eclipse.che.api.machine.shared.Constants.GET_ENVIRONMENT_OUTPUT_CHANNEL;
+import static org.eclipse.che.api.machine.shared.Constants.GET_ENVIRONMENT_STATUS_CHANNEL;
 import static org.eclipse.che.api.machine.shared.Constants.WSAGENT_REFERENCE;
 import static org.eclipse.che.api.machine.shared.Constants.WSAGENT_WEBSOCKET_REFERENCE;
 import static org.eclipse.che.api.workspace.shared.Constants.GET_ALL_USER_WORKSPACES;
@@ -128,7 +130,6 @@ public class WorkspaceServiceTest {
     @BeforeMethod
     public void setup() {
         service = new WorkspaceService(wsManager,
-                                       machineManager,
                                        validator,
                                        new WorkspaceServiceLinksInjector(IDE_CONTEXT, new MachineServiceLinksInjector()));
     }
@@ -296,7 +297,7 @@ public class WorkspaceServiceTest {
                                          .delete(SECURE_PATH + "/workspace/" + workspace.getId());
 
         assertEquals(response.getStatusCode(), 204);
-        verify(machineManager).removeSnapshots(NAMESPACE, workspace.getId());
+        verify(wsManager).removeSnapshots(workspace.getId());
         verify(wsManager).removeWorkspace(workspace.getId());
     }
 
@@ -665,7 +666,9 @@ public class WorkspaceServiceTest {
                                                               LINK_REL_GET_SNAPSHOT,
                                                               LINK_REL_GET_WORKSPACE_EVENTS_CHANNEL,
                                                               LINK_REL_IDE_URL,
-                                                              LINK_REL_SELF));
+                                                              LINK_REL_SELF,
+                                                              GET_ENVIRONMENT_OUTPUT_CHANNEL,
+                                                              GET_ENVIRONMENT_STATUS_CHANNEL));
         assertTrue(actualRels.equals(expectedRels), format("Links difference: '%s'. \n" +
                                                            "Returned links: '%s', \n" +
                                                            "Expected links: '%s'.",

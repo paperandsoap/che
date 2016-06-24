@@ -14,25 +14,13 @@ import java.io.Closeable;
 import java.io.IOException;
 
 /**
- * Consumes text line by line for analysing, writing, storing, etc.
+ * Consumes messages one by one for analysing, writing, storing, etc.
  *
- * @author andrew00x
  * @author Alexander Garagatyi
  */
-public interface LineConsumer extends Closeable {
-    /** Consumes single line. */
-    void writeLine(String line) throws IOException;
+public interface MessageConsumer<T> extends Closeable {
+    void write(T message) throws IOException;
 
     @Override
     default void close() throws IOException {}
-
-    LineConsumer DEV_NULL = new LineConsumer() {
-        @Override
-        public void writeLine(String line) {
-        }
-
-        @Override
-        public void close() {
-        }
-    };
 }

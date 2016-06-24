@@ -10,29 +10,27 @@
  *******************************************************************************/
 package org.eclipse.che.api.core.util;
 
-import java.io.Closeable;
+import com.google.gson.Gson;
+import com.google.gson.GsonBuilder;
+
 import java.io.IOException;
 
 /**
- * Consumes text line by line for analysing, writing, storing, etc.
+ * Message consumer that sends messages to specified websocket channel
  *
- * @author andrew00x
  * @author Alexander Garagatyi
  */
-public interface LineConsumer extends Closeable {
-    /** Consumes single line. */
-    void writeLine(String line) throws IOException;
+public class WebsocketMessageConsumer<T> implements MessageConsumer<T> {
+    private static final Gson GSON = new GsonBuilder().disableHtmlEscaping().create();
+
+    private final LineConsumer messageSender;
+
+    public WebsocketMessageConsumer(String channel) {
+        this.messageSender = new WebsocketLineConsumer(channel);
+    }
 
     @Override
-    default void close() throws IOException {}
-
-    LineConsumer DEV_NULL = new LineConsumer() {
-        @Override
-        public void writeLine(String line) {
-        }
-
-        @Override
-        public void close() {
-        }
-    };
+    public void write(T message) throws IOException {
+        messageSender.writeLine(GSON.toJson(message));
+    }
 }
