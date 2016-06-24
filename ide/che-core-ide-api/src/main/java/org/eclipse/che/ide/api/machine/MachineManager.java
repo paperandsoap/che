@@ -40,7 +40,7 @@ public interface MachineManager {
      * @param machineConfig
      *         contains information about machine configuration
      */
-    void onMachineCreating(MachineConfigDto machineConfig);
+    void onNotMachineCreating(MachineConfigDto machineConfig);
 
     /**
      * Performs some actions when machine is running.

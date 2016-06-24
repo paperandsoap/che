@@ -354,7 +354,7 @@ public class MachineManagerImpl implements MachineManager, WorkspaceStoppedHandl
     }
 
     @Override
-    public void onMachineCreating(MachineConfigDto machineConfig) {
+    public void onNotMachineCreating(MachineConfigDto machineConfig) {
         subscribeToMachineChannels(machineConfig);
     }
 

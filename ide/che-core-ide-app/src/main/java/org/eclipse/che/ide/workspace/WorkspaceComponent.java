@@ -318,7 +318,7 @@ public abstract class WorkspaceComponent implements Component, WsAgentStateHandl
             if (machineConfig.isDev()) {
                 machineManager.onDevMachineCreating(machineConfig);
             } else {
-                machineManager.onMachineCreating(machineConfig);
+                machineManager.onNotMachineCreating(machineConfig);
             }
         }
     }
