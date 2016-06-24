@@ -12,12 +12,12 @@ package org.eclipse.che.ide.ext.java.client.editor;
 
 import com.google.common.base.Optional;
 import com.google.gwt.core.client.Scheduler;
-import com.google.gwt.user.client.Timer;
 import com.google.inject.Inject;
 import com.google.inject.Singleton;
 
 import org.eclipse.che.api.promises.client.Operation;
 import org.eclipse.che.api.promises.client.OperationException;
+import org.eclipse.che.ide.DelayedTask;
 import org.eclipse.che.ide.api.app.AppContext;
 import org.eclipse.che.ide.api.editor.EditorAgent;
 import org.eclipse.che.ide.api.editor.EditorPartPresenter;
@@ -99,11 +99,39 @@ public class OpenDeclarationFinder {
         }
     }
 
+    private void setCursorAndActivateEditor(final EditorPartPresenter editor, final int offset) {
+
+        /*
+          For some undefined reason we need to wrap cursor and focus setting into timer with 1ms.
+          When editors are switching, they don't have enough time to redraw and set focus. Need
+          to investigate this problem more deeply. But at this moment this trick works as well.
+          */
+
+        new DelayedTask(){
+            @Override
+            public void onExecute() {
+                if (editor instanceof TextEditorPresenter) {
+                    ((TextEditorPresenter)editor).getDocument().setSelectedRange(LinearRange.createWithStart(offset).andLength(0), true);
+                    editor.activate(); //force set focus to the editor
+                }
+            }
+        }.delay(1);
+    }
+
     private void handleDescriptor(final Project project, final OpenDeclarationDescriptor descriptor) {
-        EditorPartPresenter openedEditor = editorAgent.getOpenedEditor(Path.valueOf(descriptor.getPath()));
+        final EditorPartPresenter openedEditor = editorAgent.getOpenedEditor(Path.valueOf(descriptor.getPath()));
         if (openedEditor != null) {
-            editorAgent.activateEditor(openedEditor);
-            fileOpened(openedEditor, descriptor.getOffset());
+            editorAgent.openEditor(openedEditor.getEditorInput().getFile(), new OpenEditorCallbackImpl() {
+                @Override
+                public void onEditorOpened(EditorPartPresenter editor) {
+                    setCursorAndActivateEditor(editor, descriptor.getOffset());
+                }
+
+                @Override
+                public void onEditorActivated(EditorPartPresenter editor) {
+                    setCursorAndActivateEditor(editor, descriptor.getOffset());
+                }
+            });
             return;
         }
 
@@ -163,17 +191,5 @@ public class OpenDeclarationFinder {
                 }
             });
         }
-    }
-
-    private void fileOpened(final EditorPartPresenter editor, final int offset) {
-        new Timer() { //in some reason we need here timeout otherwise it not work cursor don't set to correct position
-            @Override
-            public void run() {
-                if (editor instanceof TextEditorPresenter) {
-                    ((TextEditorPresenter)editor).getDocument().setSelectedRange(
-                            LinearRange.createWithStart(offset).andLength(0), true);
-                }
-            }
-        }.schedule(100);
     }
 }

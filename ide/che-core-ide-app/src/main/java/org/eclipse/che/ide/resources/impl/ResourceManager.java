@@ -48,6 +48,7 @@ import org.eclipse.che.ide.api.resources.marker.MarkerChangedEvent;
 import org.eclipse.che.ide.context.AppContextImpl;
 import org.eclipse.che.ide.dto.DtoFactory;
 import org.eclipse.che.ide.resource.Path;
+import org.eclipse.che.ide.util.Arrays;
 
 import java.util.HashMap;
 import java.util.List;
@@ -118,13 +119,13 @@ public final class ResourceManager {
 
     private static final Resource[] NO_RESOURCES = new Resource[0];
 
-    private final ProjectServiceClient     ps;
-    private final EventBus                 eventBus;
-    private final ResourceFactory          resourceFactory;
-    private final PromiseProvider          promises;
-    private final DtoFactory               dtoFactory;
-    private final ProjectTypeRegistry      typeRegistry;
-    private       DevMachine               devMachine;
+    private final ProjectServiceClient ps;
+    private final EventBus             eventBus;
+    private final ResourceFactory      resourceFactory;
+    private final PromiseProvider      promises;
+    private final DtoFactory           dtoFactory;
+    private final ProjectTypeRegistry  typeRegistry;
+    private       DevMachine           devMachine;
 
     /**
      * Link to the workspace content root. Immutable among the workspace life.
@@ -319,7 +320,8 @@ public final class ResourceManager {
 
                                         for (Resource descendant : resources) {
                                             if (descendant.getLocation().equals(referencePath)) {
-                                            eventBus.fireEvent(new ResourceChangedEvent(new ResourceDeltaImpl(descendant, ADDED | DERIVED)));
+                                                eventBus.fireEvent(
+                                                        new ResourceChangedEvent(new ResourceDeltaImpl(descendant, ADDED | DERIVED)));
 
                                                 return (Folder)descendant;
                                             }
@@ -356,7 +358,8 @@ public final class ResourceManager {
 
                                         for (Resource descendant : resources) {
                                             if (descendant.getLocation().equals(referencePath)) {
-                                                eventBus.fireEvent(new ResourceChangedEvent(new ResourceDeltaImpl(descendant, ADDED | DERIVED)));
+                                                eventBus.fireEvent(
+                                                        new ResourceChangedEvent(new ResourceDeltaImpl(descendant, ADDED | DERIVED)));
 
                                                 return (File)descendant;
                                             }
@@ -444,7 +447,8 @@ public final class ResourceManager {
 
                         store.register(project);
 
-                        eventBus.fireEvent(new ResourceChangedEvent(new ResourceDeltaImpl(project, (resource.isPresent() ? UPDATED : ADDED) | DERIVED)));
+                        eventBus.fireEvent(new ResourceChangedEvent(
+                                new ResourceDeltaImpl(project, (resource.isPresent() ? UPDATED : ADDED) | DERIVED)));
 
                         return (Project)project;
                     }
@@ -466,12 +470,13 @@ public final class ResourceManager {
                              @Override
                              public Promise<Resource> apply(Void ignored) throws FunctionException {
 
-                                return findResource(destination, false).then(new Function<Optional<Resource>, Resource>() {
+                                 return findResource(destination, false).then(new Function<Optional<Resource>, Resource>() {
                                      @Override
                                      public Resource apply(Optional<Resource> movedResource) throws FunctionException {
                                          if (movedResource.isPresent()) {
                                              eventBus.fireEvent(new ResourceChangedEvent(new ResourceDeltaImpl(movedResource.get(), source,
-                                                                                           ADDED | MOVED_FROM | MOVED_TO | DERIVED)));
+                                                                                                               ADDED | MOVED_FROM |
+                                                                                                               MOVED_TO | DERIVED)));
                                              return movedResource.get();
                                          }
 
@@ -502,7 +507,8 @@ public final class ResourceManager {
                                      public Resource apply(Optional<Resource> copiedResource) throws FunctionException {
                                          if (copiedResource.isPresent()) {
                                              eventBus.fireEvent(new ResourceChangedEvent(new ResourceDeltaImpl(copiedResource.get(), source,
-                                                                                                               ADDED | COPIED_FROM | DERIVED)));
+                                                                                                               ADDED | COPIED_FROM |
+                                                                                                               DERIVED)));
                                              return copiedResource.get();
                                          }
 
@@ -612,6 +618,8 @@ public final class ResourceManager {
             @Override
             public Resource[] apply(Resource[] reloaded) throws FunctionException {
 
+                Resource[] result = new Resource[0];
+
                 if (descendants.isPresent()) {
                     Resource[] outdated = descendants.get();
 
@@ -626,6 +634,11 @@ public final class ResourceManager {
                         store.register(resource);
 
                         eventBus.fireEvent(new ResourceChangedEvent(new ResourceDeltaImpl(resource, UPDATED)));
+
+                        final Optional<Resource> registered = store.getResource(resource.getLocation());
+                        if (registered.isPresent()) {
+                            result = Arrays.add(result, registered.get());
+                        }
                     }
 
                     final Resource[] added = removeAll(reloaded, outdated, false);
@@ -633,6 +646,11 @@ public final class ResourceManager {
                         store.register(resource);
 
                         eventBus.fireEvent(new ResourceChangedEvent(new ResourceDeltaImpl(resource, ADDED)));
+
+                        final Optional<Resource> registered = store.getResource(resource.getLocation());
+                        if (registered.isPresent()) {
+                            result = Arrays.add(result, registered.get());
+                        }
                     }
 
 
@@ -641,13 +659,15 @@ public final class ResourceManager {
                         store.register(resource);
 
                         eventBus.fireEvent(new ResourceChangedEvent(new ResourceDeltaImpl(resource, ADDED)));
+
+                        final Optional<Resource> registered = store.getResource(resource.getLocation());
+                        if (registered.isPresent()) {
+                            result = Arrays.add(result, registered.get());
+                        }
                     }
                 }
 
-                final Optional<Resource[]> all = store.getAll(container.getLocation());
-                checkState(all.isPresent(), "Failed to locate updated children");
-
-                return all.get();
+                return result;
             }
         });
     }

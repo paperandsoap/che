@@ -1340,8 +1340,14 @@ public class Tree extends FocusWidget implements HasBeforeExpandNodeHandlers,
 
     private void findChildren(Node parent, List<Node> list, boolean onlyVisible) {
         for (Node child : nodeStorage.getChildren(parent)) {
+            final NodeDescriptor descriptor = getNodeDescriptor(child);
+            if (descriptor == null) {
+                continue;
+            }
+
             list.add(child);
-            if (!onlyVisible || getNodeDescriptor(child).isExpanded()) {
+
+            if (!onlyVisible || descriptor.isExpanded()) {
                 findChildren(child, list, onlyVisible);
             }
         }
