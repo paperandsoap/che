@@ -18,9 +18,9 @@ import com.google.web.bindery.event.shared.HandlerRegistration;
 import org.eclipse.che.ide.api.editor.EditorWithErrors;
 import org.eclipse.che.ide.api.resources.VirtualFile;
 import org.eclipse.che.ide.api.editor.text.Region;
-import org.eclipse.che.ide.ext.java.client.event.DependencyUpdatedEvent;
-import org.eclipse.che.ide.ext.java.client.event.DependencyUpdatedEventHandler;
+import org.eclipse.che.ide.ext.java.client.event.ResolvingProjectEvent;
 import org.eclipse.che.ide.ext.java.client.projecttree.JavaSourceFolderUtil;
+import org.eclipse.che.ide.ext.java.shared.dto.HighlightedPosition;
 import org.eclipse.che.ide.ext.java.shared.dto.Problem;
 import org.eclipse.che.ide.ext.java.shared.dto.ReconcileResult;
 import org.eclipse.che.ide.api.editor.annotation.AnnotationModel;
@@ -31,19 +31,19 @@ import org.eclipse.che.ide.api.editor.texteditor.TextEditorPresenter;
 import org.eclipse.che.ide.util.loging.Log;
 
 import javax.validation.constraints.NotNull;
+import java.util.Collections;
 import java.util.List;
 
-public class JavaReconcilerStrategy implements ReconcilingStrategy {
-
+public class JavaReconcilerStrategy implements ReconcilingStrategy, ResolvingProjectEvent.ResolvingProjectEventHandler {
 
     private final TextEditorPresenter<?>    editor;
     private final JavaCodeAssistProcessor   codeAssistProcessor;
     private final AnnotationModel           annotationModel;
     private final HandlerRegistration       handlerRegistration;
-    private       SemanticHighlightRenderer highlighter;
-    private       JavaReconcileClient       client;
+    private final SemanticHighlightRenderer highlighter;
+    private final JavaReconcileClient       client;
     private       VirtualFile               file;
-    private boolean first = true;
+    private boolean enabled = true;
 
     @AssistedInject
     public JavaReconcilerStrategy(@Assisted @NotNull final TextEditorPresenter<?> editor,
@@ -58,12 +58,7 @@ public class JavaReconcilerStrategy implements ReconcilingStrategy {
         this.annotationModel = annotationModel;
         this.highlighter = highlighter;
 
-        handlerRegistration = eventBus.addHandler(DependencyUpdatedEvent.TYPE, new DependencyUpdatedEventHandler() {
-            @Override
-            public void onDependencyUpdated() {
-                parse();
-            }
-        });
+        handlerRegistration = eventBus.addHandler(ResolvingProjectEvent.TYPE, this);
     }
 
     @Override
@@ -78,16 +73,15 @@ public class JavaReconcilerStrategy implements ReconcilingStrategy {
     }
 
     public void parse() {
-        if (first) {
-            codeAssistProcessor.disableCodeAssistant();
-            first = false;
-        }
-
-
         String fqn = JavaSourceFolderUtil.getFQNForFile(file);
         client.reconcile(file.getProject().getProjectConfig().getPath(), fqn, new JavaReconcileClient.ReconcileCallback() {
             @Override
             public void onReconcile(ReconcileResult result) {
+                if (!enabled) {
+                    disableReconciler();
+                    return;
+                }
+
                 if (result == null) {
                     return;
                 }
@@ -108,7 +102,7 @@ public class JavaReconcilerStrategy implements ReconcilingStrategy {
     }
 
     private void doReconcile(final List<Problem> problems) {
-        if (!first) {
+        if (enabled) {
             codeAssistProcessor.enableCodeAssistant();
         }
 
@@ -150,10 +144,28 @@ public class JavaReconcilerStrategy implements ReconcilingStrategy {
         }
     }
 
+    private void disableReconciler() {
+        codeAssistProcessor.disableCodeAssistant();
+        doReconcile(Collections.<Problem>emptyList());
+        highlighter.reconcile(Collections.<HighlightedPosition>emptyList());
+    }
+
     @Override
     public void closeReconciler() {
         if (handlerRegistration != null) {
             handlerRegistration.removeHandler();
         }
+    }
+
+    @Override
+    public void onResolvingProjectStarting() {
+        enabled = false;
+        disableReconciler();
+    }
+
+    @Override
+    public void onResolvingProjectFinished() {
+        enabled = true;
+        parse();
     }
 }
