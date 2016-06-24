@@ -29,6 +29,8 @@ public interface Machine {
      */
     String getId();
 
+    Machine withId(String machineId);
+
     /**
      * Returns ID of workspace this machine belongs to. It is mandatory.
      */

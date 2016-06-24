@@ -16,32 +16,32 @@ import com.google.gwt.event.shared.GwtEvent;
 import org.eclipse.che.api.machine.shared.dto.event.MachineStatusEvent;
 
 /**
- * Event that describes the fact that dev machine state has been changed.
+ * Event that describes the fact that machine state has been changed.
  *
  * @author Roman Nikitenko
  */
-public class DevMachineStateEvent extends GwtEvent<DevMachineStateEvent.Handler> {
+public class MachineStateEvent extends GwtEvent<MachineStateEvent.Handler> {
 
     public interface Handler extends EventHandler {
         /**
-         * Called when dev machine has been started.
+         * Called when machine has been started.
          *
          * @param event
-         *         the fired {@link DevMachineStateEvent}
+         *         the fired {@link MachineStateEvent}
          */
-        void onDevMachineStarted(DevMachineStateEvent event);
+        void onMachineStarted(MachineStateEvent event);
 
         /**
-         * Called when dev machine has been destroyed.
+         * Called when machine has been destroyed.
          *
          * @param event
-         *         the fired {@link DevMachineStateEvent}
+         *         the fired {@link MachineStateEvent}
          */
-        void onDevMachineDestroyed(DevMachineStateEvent event);
+        void onMachineDestroyed(MachineStateEvent event);
     }
 
     /** Type class used to register this event. */
-    public static Type<DevMachineStateEvent.Handler> TYPE = new Type<>();
+    public static Type<MachineStateEvent.Handler> TYPE = new Type<>();
     private final MachineStatusEvent.EventType status;
     private final String                       machineId;
     private final String                       workspaceId;
@@ -49,12 +49,12 @@ public class DevMachineStateEvent extends GwtEvent<DevMachineStateEvent.Handler>
     private final String                       error;
 
     /**
-     * Create new {@link DevMachineStateEvent}.
+     * Create new {@link MachineStateEvent}.
      *
      * @param event
      *         the type of action
      */
-    public DevMachineStateEvent(MachineStatusEvent event) {
+    public MachineStateEvent(MachineStatusEvent event) {
         this.status = event.getEventType();
         this.machineId = event.getMachineId();
         this.workspaceId = event.getWorkspaceId();
@@ -63,7 +63,7 @@ public class DevMachineStateEvent extends GwtEvent<DevMachineStateEvent.Handler>
     }
 
     @Override
-    public Type<DevMachineStateEvent.Handler> getAssociatedType() {
+    public Type<MachineStateEvent.Handler> getAssociatedType() {
         return TYPE;
     }
 
@@ -89,13 +89,13 @@ public class DevMachineStateEvent extends GwtEvent<DevMachineStateEvent.Handler>
     }
 
     @Override
-    protected void dispatch(DevMachineStateEvent.Handler handler) {
+    protected void dispatch(MachineStateEvent.Handler handler) {
         switch (status) {
             case RUNNING:
-                handler.onDevMachineStarted(this);
+                handler.onMachineStarted(this);
                 break;
             case DESTROYED:
-                handler.onDevMachineDestroyed(this);
+                handler.onMachineDestroyed(this);
                 break;
         }
     }

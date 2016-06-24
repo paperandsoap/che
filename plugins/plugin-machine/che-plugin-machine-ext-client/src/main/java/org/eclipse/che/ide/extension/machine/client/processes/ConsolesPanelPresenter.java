@@ -17,7 +17,6 @@ import com.google.inject.Singleton;
 import com.google.web.bindery.event.shared.EventBus;
 
 import org.eclipse.che.ide.api.machine.MachineServiceClient;
-import org.eclipse.che.ide.api.machine.events.DevMachineStateEvent;
 import org.eclipse.che.api.machine.shared.dto.CommandDto;
 import org.eclipse.che.api.machine.shared.dto.MachineDto;
 import org.eclipse.che.api.machine.shared.dto.MachineProcessDto;
@@ -154,17 +153,6 @@ public class ConsolesPanelPresenter extends BasePresenter implements ConsolesPan
         this.view.setDelegate(this);
         this.view.setTitle(localizationConstant.viewConsolesTitle());
 
-        eventBus.addHandler(DevMachineStateEvent.TYPE, new DevMachineStateEvent.Handler() {
-            @Override
-            public void onDevMachineStarted(DevMachineStateEvent event) {
-                fetchMachines();
-            }
-
-            @Override
-            public void onDevMachineDestroyed(DevMachineStateEvent event) {
-            }
-        });
-
         eventBus.addHandler(ProcessFinishedEvent.TYPE, this);
         eventBus.addHandler(WorkspaceStoppedEvent.TYPE, this);
         eventBus.addHandler(MachineStateEvent.TYPE, this);
@@ -221,12 +209,7 @@ public class ConsolesPanelPresenter extends BasePresenter implements ConsolesPan
     public void onMachineRunning(MachineStateEvent event) {
         workspaceAgent.setActivePart(this);
 
-        machineService.getMachine(event.getMachineId()).then(new Operation<MachineDto>() {
-            @Override
-            public void apply(MachineDto machine) throws OperationException {
-                addMachineToConsoles(machine);
-            }
-        });
+        addMachineToConsole((MachineDto)event.getMachine());
     }
 
     @Override
@@ -246,7 +229,7 @@ public class ConsolesPanelPresenter extends BasePresenter implements ConsolesPan
     }
 
     /** Get the list of all available machines. */
-    public void fetchMachines() {
+    private void fetchMachines() {
         String workspaceId = appContext.getWorkspaceId();
 
         machineService.getMachines(workspaceId).then(new Operation<List<MachineDto>>() {
@@ -255,12 +238,12 @@ public class ConsolesPanelPresenter extends BasePresenter implements ConsolesPan
                 rootNode = new ProcessTreeNode(ROOT_NODE, null, null, null, rootChildren);
 
                 MachineDto devMachine = getDevMachine(machines);
-                addMachineToConsoles(devMachine);
+                addMachineToConsole(devMachine);
 
                 machines.remove(devMachine);
 
                 for (MachineDto machine : machines) {
-                    addMachineToConsoles(machine);
+                    addMachineToConsole(machine);
                 }
             }
         });
@@ -276,7 +259,7 @@ public class ConsolesPanelPresenter extends BasePresenter implements ConsolesPan
         throw new IllegalArgumentException("Dev machine can not be null");
     }
 
-    private void addMachineToConsoles(MachineDto machine) {
+    private void addMachineToConsole(MachineDto machine) {
         List<ProcessTreeNode> processTreeNodes = new ArrayList<ProcessTreeNode>();
         ProcessTreeNode machineNode = new ProcessTreeNode(MACHINE_NODE, rootNode, machine, null, processTreeNodes);
         machineNode.setRunning(true);

@@ -17,7 +17,7 @@ import com.google.web.bindery.event.shared.EventBus;
 
 import org.eclipse.che.api.core.model.machine.MachineStatus;
 import org.eclipse.che.ide.api.machine.MachineServiceClient;
-import org.eclipse.che.ide.api.machine.events.DevMachineStateEvent;
+import org.eclipse.che.ide.api.machine.events.MachineStateEvent;
 import org.eclipse.che.api.machine.shared.dto.CommandDto;
 import org.eclipse.che.api.machine.shared.dto.MachineConfigDto;
 import org.eclipse.che.api.machine.shared.dto.MachineDto;
@@ -138,7 +138,7 @@ public class ConsolesPanelPresenterTest {
     @Captor
     private ArgumentCaptor<Operation<MachineDto>>              machineCaptor;
     @Captor
-    private ArgumentCaptor<DevMachineStateEvent.Handler>       devMachineStateHandlerCaptor;
+    private ArgumentCaptor<MachineStateEvent.Handler>          devMachineStateHandlerCaptor;
     @Captor
     private ArgumentCaptor<Operation<PromiseError>>            errorOperation;
 
@@ -215,11 +215,11 @@ public class ConsolesPanelPresenterTest {
         machines.add(machineDto);
 
         when(appContext.getWorkspace()).thenReturn(workspace);
-        DevMachineStateEvent devMachineStateEvent = mock(DevMachineStateEvent.class);
+        MachineStateEvent devMachineStateEvent = mock(MachineStateEvent.class);
         verify(eventBus, times(4)).addHandler(anyObject(), devMachineStateHandlerCaptor.capture());
 
-        DevMachineStateEvent.Handler devMachineStateHandler = devMachineStateHandlerCaptor.getAllValues().get(0);
-        devMachineStateHandler.onDevMachineStarted(devMachineStateEvent);
+        MachineStateEvent.Handler devMachineStateHandler = devMachineStateHandlerCaptor.getAllValues().get(0);
+        devMachineStateHandler.onMachineStarted(devMachineStateEvent);
 
         verify(appContext, times(2)).getWorkspaceId();
         verify(machineService, times(2)).getMachines(eq(WORKSPACE_ID));
