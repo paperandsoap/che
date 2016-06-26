@@ -37,6 +37,7 @@ import org.eclipse.che.api.machine.server.exception.UnsupportedRecipeException;
 import org.eclipse.che.api.machine.server.model.impl.LimitsImpl;
 import org.eclipse.che.api.machine.server.model.impl.MachineConfigImpl;
 import org.eclipse.che.api.machine.server.model.impl.MachineImpl;
+import org.eclipse.che.api.machine.server.model.impl.MachineSourceImpl;
 import org.eclipse.che.api.machine.server.model.impl.SnapshotImpl;
 import org.eclipse.che.api.machine.server.spi.Instance;
 import org.eclipse.che.api.machine.server.spi.InstanceProcess;
@@ -277,45 +278,45 @@ public class MachineManager {
                    ConflictException,
                    BadRequestException,
                    MachineException {
-        final MachineConfigImpl machineConfigCopy = new MachineConfigImpl(machineConfig);
-        final InstanceProvider instanceProvider = machineInstanceProviders.getProvider(machineConfigCopy.getType());
+        final MachineSourceImpl sourceCopy = machineConfig.getSource();
+        final InstanceProvider instanceProvider = machineInstanceProviders.getProvider(machineConfig.getType());
 
         // Backward compatibility for source type 'Recipe'.
         // Only 'dockerfile' impl of source type existed when 'Recipe' was valid source type.
         // Changed in 4.2.0-RC1
         // todo remove that several versions later
-        if ("recipe".equalsIgnoreCase(machineConfigCopy.getSource().getType())) {
-            machineConfigCopy.getSource().setType("dockerfile");
+        if ("recipe".equalsIgnoreCase(machineConfig.getSource().getType())) {
+            machineConfig.getSource().setType("dockerfile");
         }
-        if (!instanceProvider.getRecipeTypes().contains(machineConfigCopy.getSource().getType().toLowerCase())) {
+        if (!instanceProvider.getRecipeTypes().contains(machineConfig.getSource().getType().toLowerCase())) {
             throw new UnsupportedRecipeException(format("Recipe type %s of %s machine is unsupported",
-                                                        machineConfigCopy.getSource().getType(),
-                                                        machineConfigCopy.getName()));
+                                                        machineConfig.getSource().getType(),
+                                                        machineConfig.getName()));
         }
 
-        if (!MACHINE_DISPLAY_NAME_PATTERN.matcher(machineConfigCopy.getName()).matches()) {
-            throw new BadRequestException("Invalid machine name " + machineConfigCopy.getName());
+        if (!MACHINE_DISPLAY_NAME_PATTERN.matcher(machineConfig.getName()).matches()) {
+            throw new BadRequestException("Invalid machine name " + machineConfig.getName());
         }
 
         for (MachineImpl machine : machineRegistry.getMachines()) {
-            if (machine.getWorkspaceId().equals(workspaceId) && machine.getConfig().getName().equals(machineConfigCopy.getName())) {
-                throw new ConflictException("Machine with name " + machineConfigCopy.getName() + " already exists");
+            if (machine.getWorkspaceId().equals(workspaceId) && machine.getConfig().getName().equals(machineConfig.getName())) {
+                throw new ConflictException("Machine with name " + machineConfig.getName() + " already exists");
             }
         }
 
         // recover key from snapshot if there is one
         if (snapshot != null) {
-            machineConfigCopy.setSource(snapshot.getMachineSource());
+            machineConfig.setSource(snapshot.getMachineSource());
         }
 
         final String machineId = generateMachineId();
         final String creator = EnvironmentContext.getCurrent().getSubject().getUserId();
 
-        if (machineConfigCopy.getLimits().getRam() == 0) {
-            machineConfigCopy.setLimits(new LimitsImpl(defaultMachineMemorySizeMB));
+        if (machineConfig.getLimits().getRam() == 0) {
+            machineConfig.setLimits(new LimitsImpl(defaultMachineMemorySizeMB));
         }
 
-        final MachineImpl machine = new MachineImpl(machineConfigCopy,
+        final MachineImpl machine = new MachineImpl(machineConfig,
                                                     machineId,
                                                     workspaceId,
                                                     environmentName,
@@ -337,17 +338,14 @@ public class MachineManager {
             return machine;
         } catch (MachineException machineEx) {
             if (snapshot != null) {
-                machineConfigCopy.setSource(machineConfig.getSource());
-                final MachineImpl newMachine = new MachineImpl(machineConfigCopy,
-                                                               machineId,
-                                                               workspaceId,
-                                                               environmentName,
-                                                               creator,
-                                                               MachineStatus.CREATING,
-                                                               null);
-                machineRegistry.addMachine(newMachine);
-                instanceCreator.createInstance(instanceProvider, newMachine, machineLogger);
-                return newMachine;
+                machine.getConfig().setSource(sourceCopy);
+                machineRegistry.addMachine(machine);
+                instanceCreator.createInstance(instanceProvider, machine, machineLogger);
+                return machine;
+            }
+            try {
+                machineLogger.close();
+            } catch (IOException ignored) {
             }
             throw machineEx;
         } catch (ConflictException e) {
