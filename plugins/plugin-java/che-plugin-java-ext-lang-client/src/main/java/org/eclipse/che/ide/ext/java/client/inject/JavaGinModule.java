@@ -38,6 +38,7 @@ import org.eclipse.che.ide.ext.java.client.dependenciesupdater.JavaClasspathServ
 import org.eclipse.che.ide.ext.java.client.dependenciesupdater.JavaClasspathServiceClientImpl;
 import org.eclipse.che.ide.ext.java.client.documentation.QuickDocPresenter;
 import org.eclipse.che.ide.ext.java.client.documentation.QuickDocumentation;
+import org.eclipse.che.ide.ext.java.client.editor.ResolvingJavaProjectStateHolder;
 import org.eclipse.che.ide.ext.java.client.inject.factories.PropertyWidgetFactory;
 import org.eclipse.che.ide.ext.java.client.navigation.service.JavaNavigationService;
 import org.eclipse.che.ide.ext.java.client.navigation.service.JavaNavigationServiceImpl;
@@ -63,6 +64,7 @@ import org.eclipse.che.ide.ext.java.client.settings.property.PropertyWidget;
 import org.eclipse.che.ide.ext.java.client.settings.property.PropertyWidgetImpl;
 import org.eclipse.che.ide.extension.machine.client.command.CommandType;
 import org.eclipse.che.ide.extension.machine.client.command.valueproviders.CommandPropertyValueProvider;
+import org.eclipse.che.ide.project.ResolvingProjectStateHolder;
 
 import static org.eclipse.che.ide.ext.java.client.action.OrganizeImportsAction.JAVA_ORGANIZE_IMPORT_ID;
 
@@ -120,6 +122,8 @@ public class JavaGinModule extends AbstractGinModule {
         GinMultibinder.newSetBinder(binder(), CommandPropertyValueProvider.class).addBinding().to(CurrentClassFQNProvider.class);
         GinMultibinder.newSetBinder(binder(), ClasspathPagePresenter.class).addBinding().to(LibEntryPresenter.class);
         GinMultibinder.newSetBinder(binder(), ClasspathPagePresenter.class).addBinding().to(SourceEntryPresenter.class);
+
+        bind(ResolvingProjectStateHolder.class).to(ResolvingJavaProjectStateHolder.class);
     }
 
     @Provides
