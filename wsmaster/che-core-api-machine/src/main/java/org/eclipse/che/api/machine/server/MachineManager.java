@@ -331,26 +331,18 @@ public class MachineManager {
                 .getOutput());
 
         try {
-            machineRegistry.addMachine(machine);
-
-            instanceCreator.createInstance(instanceProvider, machine, machineLogger);
-
-            return machine;
-        } catch (MachineException machineEx) {
-            if (snapshot != null) {
-                machine.getConfig().setSource(sourceCopy);
-                if (machineRegistry.isExist(machineId)) {
-                    machineRegistry.remove(machineId);
-                }
+            try {
                 machineRegistry.addMachine(machine);
                 instanceCreator.createInstance(instanceProvider, machine, machineLogger);
-                return machine;
+            } catch (MachineException machineEx) {
+                if (snapshot == null) {
+                    throw machineEx;
+                }
+                machine.getConfig().setSource(sourceCopy);
+                machineRegistry.addMachine(machine);
+                instanceCreator.createInstance(instanceProvider, machine, machineLogger);
             }
-            try {
-                machineLogger.close();
-            } catch (IOException ignored) {
-            }
-            throw machineEx;
+            return machine;
         } catch (ConflictException e) {
             try {
                 machineLogger.close();
