@@ -339,6 +339,9 @@ public class MachineManager {
         } catch (MachineException machineEx) {
             if (snapshot != null) {
                 machine.getConfig().setSource(sourceCopy);
+                if (machineRegistry.isExist(machineId)) {
+                    machineRegistry.remove(machineId);
+                }
                 machineRegistry.addMachine(machine);
                 instanceCreator.createInstance(instanceProvider, machine, machineLogger);
                 return machine;
